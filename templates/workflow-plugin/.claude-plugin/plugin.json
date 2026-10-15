@@ -1,0 +1,5 @@
+{
+  "name": "{{WORKFLOW_NAME}}",
+  "version": "0.1.0",
+  "description": "{{WORKFLOW_DESCRIPTION}}"
+}

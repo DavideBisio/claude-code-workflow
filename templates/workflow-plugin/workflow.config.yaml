@@ -1,0 +1,23 @@
+# Shared setup for every step of the {{WORKFLOW_NAME}} workflow.
+# Each step skill reads this file first. Keep it data-only.
+
+workflow:
+  name: {{WORKFLOW_NAME}}
+  language: en                 # language for outputs
+  state_dir: .workflow         # where steps write/read hand-off files (relative to the user's project)
+
+# Ordered list of steps. `id` = skill folder name under skills/.
+steps:
+  - id: step-1-example
+    output: 01-example.md      # file written to state_dir
+    requires: []               # step ids whose output must exist first
+
+# Choices that steps may branch on.
+choices: {}
+
+# Reference data / info used by steps.
+data: {}
+
+# Triggers are DESCRIPTIVE only: Claude reads them, nothing fires automatically.
+# Real automation needs hooks or scheduled tasks.
+triggers: {}
