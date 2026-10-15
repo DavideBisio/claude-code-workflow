@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "id": "step-1-example",
+      "output": "01-example.md",
+      "requires": [],
+      "watch": []
+    }
+  ]
+}

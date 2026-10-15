@@ -1,0 +1,19 @@
+# {{WORKFLOW_NAME}} workflow – project configuration.
+# Lives in the user's project root. Created from the plugin default if missing.
+# Step definitions (ids, order, outputs) are NOT here: they live in the plugin's workflow.json.
+
+# Flat top-level keys below are also read by scripts/wf_state.py. Keep them on one line each.
+state_dir: .workflow           # hand-off files and state.json (relative to project root)
+tracking_sync_command: ""      # optional command run by `status` to sync requirement tracking; empty = skip
+
+language: en                   # language for outputs
+
+# Choices that steps may branch on.
+choices: {}
+
+# Reference data / info used by steps.
+data: {}
+
+# Triggers are DESCRIPTIVE only: Claude reads them, nothing fires automatically.
+# Real automation needs hooks or scheduled tasks.
+triggers: {}
