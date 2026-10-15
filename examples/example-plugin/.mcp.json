@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "req-tracker": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/req-tracker/server.py"]
+    },
+    "dev-status": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/dev-status/server.py"]
+    }
+  }
+}
