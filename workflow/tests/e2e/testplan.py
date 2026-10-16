@@ -53,7 +53,7 @@ class WorkflowCtx(Ctx):
 
 def checks_run(c):
     return check_list([
-        ("tracker data fetched", lambda: len(c.read_json("git-dev.data/tracker/mock-version-control.json")["issues"]) == 3),
+        ("tracker data fetched", lambda: len(c.read_json("git-dev.data/tracker/version-control.json")["issues"]) == 3),
         ("dev rebased onto origin/dev", lambda: subprocess.run(
             ["git", "merge-base", "--is-ancestor", "origin/dev", "HEAD"], cwd=c.p,
             capture_output=True).returncode == 0

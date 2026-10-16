@@ -6,11 +6,11 @@ disable-model-invocation: true
 
 # git-dev-run
 
-Work from the project root. Helper script: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py"`. The mock servers also have a JSON CLI (the MCP tools of the same names are equivalent).
+Work from the project root. Helper script: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py"`. Every provider (mock or github-backed) also has a JSON CLI (the MCP tools of the same names are equivalent).
 
 ## 0. Project data folder
 All persistent files live in `git-dev.data/` in the project root and are **committed** (not gitignored):
-- `tracker/mock-version-control.json` (`issues`, `merge_requests`, `milestones`) and `tracker/mock-req-tracker.json` (`requirements`, `coverage`, `specifications`, `testplans`): latest tracker output.
+- `tracker/version-control.json` (`issues`, `merge_requests`, `milestones`) and `tracker/req-tracker.json` (`requirements`, `coverage`, `specifications`, `testplans`): latest tracker output. Each is produced by whichever provider `config.yaml`'s `backends.version_control` / `backends.req_tracker` names (defaults to the mock servers; see the commented example in `config.yaml` for the `github` / `github_labels` options). Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control` (or `req_tracker`) to see which is active.
 - `state.json`: last run completion date per step.
 - `work/`: scratch handoff between steps (`target.json`, `plan.md`, `result.json`); gitignored.
 - `config.yaml`: skill custom config. `project-prompt.md`: project-specific prompt read by every step.
@@ -19,7 +19,11 @@ All persistent files live in `git-dev.data/` in the project root and are **commi
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" init
 ```
 
-If it reports `created: true`, tell the user to fill in `config.yaml` and `project-prompt.md`.
+If it reports `created: true`, this is first-time setup — pick a backend for each tracker before anything else runs:
+1. Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" providers` to get the valid choices per tracker kind (`version_control`, `req_tracker`). Never hardcode backend names in this step; always ask the script.
+2. Ask the user which choice to use for `version_control` and which for `req_tracker`. If no human is present to ask (e.g. a pre-approved/automated run), default both to `mock` and say so.
+3. Save each answer: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" set-backend <kind> <value>`.
+4. Tell the user to fill in `project-prompt.md`, and — if they picked anything other than the defaults — to review the matching section in `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run.
 
 ## 1. Fetch git state and rebase
 Git comes first so the tree is clean before `git-dev.data/` is rewritten.
@@ -46,7 +50,7 @@ git rebase origin/dev
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" fetch
 ```
 
-This overwrites both files in `git-dev.data/tracker/`. Read them and summarize only what matters: open issues and merge requests, milestones, failed or uncovered requirements. If `git-dev.data/` changed, commit it (this path only, no push):
+This overwrites both files in `git-dev.data/tracker/` (via whichever provider is configured). Read them and summarize only what matters: open issues and merge requests, milestones, failed or uncovered requirements. If a `github`-backed provider errors (e.g. `gh` not installed/authenticated), stop and report the error rather than falling back silently. If `git-dev.data/` changed, commit it (this path only, no push):
 
 ```bash
 git add git-dev.data

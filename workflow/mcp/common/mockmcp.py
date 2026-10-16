@@ -85,8 +85,13 @@ def _serve(server_name, tools):
 
 
 def run(server_name, resources, argv=None):
+    return run_tools(server_name, make_tools(resources), argv)
+
+
+def run_tools(server_name, tools, argv=None):
+    """Same stdio-server + CLI harness as `run()`, for a pre-built `{name: (description, handler)}`
+    dict rather than one generated from static `resources` (used by the non-mock providers)."""
     argv = sys.argv[1:] if argv is None else argv
-    tools = make_tools(resources)
     if not argv:
         return _serve(server_name, tools)
     if argv[0] == "tools":
