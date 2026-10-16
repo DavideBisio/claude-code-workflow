@@ -16,7 +16,10 @@ skills/example-update/       step 4: coverage update, MR, commit example.data
 scripts/example_data.py      init / fetch / record-step for example.data/
 assets/example.data/         template copied into the target project
 tests/                       python -m unittest discover tests
-tests/e2e/run_e2e.py        e2e: runs the skills through the claude CLI (spends tokens)
+tests/e2e/harness.py         generic e2e engine: build fixture, invoke `claude -p`, verify, report
+tests/e2e/testplan.py        this plugin's TestPlan (skills, fixture template, goal checks)
+tests/e2e/fixtures/          fixture templates (plain file trees) for build_git_fixture
+tests/e2e/run_e2e.py        e2e: runs a TestPlan's skills through the claude CLI (spends tokens)
 ```
 
 ## Mock servers
@@ -28,7 +31,27 @@ CLI (prints JSON): `python mcp/dev-status/server.py list_issues '{"filter":{"sta
 `tracker/dev-status.json`, `tracker/req-tracker.json`, `state.json`, `config.yaml`, `project-prompt.md`. Created by `example-run`; the tracker files are overwritten on every fetch. `work/` is a gitignored scratch folder for step handoff. Every step asks the user before acting and ends with a summary.
 
 ## End-to-end test
-`python tests/e2e/run_e2e.py` builds a throwaway project (bare origin, a bug matching issue 2 / REQ-2, an upstream commit to rebase onto), then calls `claude -p` once per skill (`run`, `target`, `plan`, `execute`, `update`) with gates pre-approved. Per phase it checks the goal (git and file state, tool calls, no push) and reports input, output and cache tokens, cost, turns and duration, Everything is kept under `tests/e2e/results/<timestamp>/` (gitignored) for review: `fixture/project` (the test project; its only remote is the local `fixture/origin.git`), `<phase>.md` (readable transcript: prompt, assistant text, tool calls and results), `<phase>.jsonl` (raw event stream) and `report.json`. Options: `--phases`, `--model`, `--budget` (USD per phase), `--claude PATH`, `--clean` (delete the fixture afterwards), `--dry-run`. It sends each skill's text inline, so it does not test skill auto-invocation.
+`harness.py` is a generic engine that drives any Claude Code skill through the `claude` CLI: build a
+throwaway project from a template, call `claude -p` with the skill's own text (gates pre-approved),
+collect the transcript and metrics, then check the result — first the checks that apply to any
+skill (did it error, did it use a tool, plus whichever opt-in git checks a phase asks for: clean
+tree, still on a branch, nothing pushed), then that skill's own goal checks. It has no knowledge of
+any particular plugin; that lives in a `TestPlan` (skills, a fixture-building hook, per-phase
+checks).
+
+`testplan.py` is this plugin's TestPlan: the `run`/`target`/`plan`/`execute`/`update` workflow,
+built on a fixture (`fixtures/basic-python/`) with a bare origin, a bug matching issue 2 / REQ-2,
+and an upstream commit to rebase onto. `python tests/e2e/run_e2e.py` runs it by default; point
+`--testplan PATH` at another module exposing `TESTPLAN = harness.TestPlan(...)` to exercise a
+different plugin's skills with the same engine.
+
+Everything is kept under `tests/e2e/results/<timestamp>/` (gitignored) for review: `fixture/project`
+(the test project; its only remote is the local `fixture/origin.git`), `<phase>.md` (readable
+transcript: prompt, assistant text, tool calls and results), `<phase>.jsonl` (raw event stream) and
+`report.json` (per-phase checks and token/cost/turn/duration metrics). Options: `--testplan`,
+`--phases`, `--model`, `--budget` (USD per phase), `--claude PATH`, `--clean` (delete the fixture
+afterwards), `--dry-run`. It sends each skill's text inline, so it does not test skill
+auto-invocation.
 
 ## Not done
 - Not yet loaded in Claude Code end to end.
