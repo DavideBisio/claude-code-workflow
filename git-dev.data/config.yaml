@@ -1,3 +1,14 @@
 # skill custom config
 # This repo's own tests live under workflow/, not the repo root.
 test_command: cd workflow && python -m unittest discover tests
+
+backends:
+  version_control: github
+  req_tracker: github_labels
+
+github:
+  repo: DavideBisio/claude-code-workflow
+  labels:
+    requirement: req
+    test: test
+    dev: dev
