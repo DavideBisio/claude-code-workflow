@@ -1,0 +1,19 @@
+# PLACEHOLDER: skill custom config (project-specific)
+
+# Optional. Which provider backs each tracker; defaults to mock if omitted. Read by
+# scripts/git_dev_data.py (a tiny stdlib key:value reader, not full YAML: only this flat/
+# one-level-nested shape is supported, no lists or quoted strings).
+# backends:
+#   version_control: github        # mock | github
+#   req_tracker: github_labels     # mock | github_labels
+#
+# github:
+#   repo: owner/name               # optional; defaults to the current directory's gh-detected repo
+#   labels:
+#     requirement: req             # issues with this label are the requirements
+#     test: test                   # issues with this label are coverage records (each is its own testcase)
+#     dev: dev                     # issues with this label become the req-tracker's "specifications" slot
+
+backends:
+  version_control: github
+  req_tracker: github_labels
