@@ -17,7 +17,6 @@ Milestones of a run:
                 whatever that specific skill is supposed to have produced.
   5. report   - print a per-phase metrics table, write report.json, exit 1 if any goal was missed.
 """
-import argparse
 import datetime
 import glob
 import json
@@ -115,7 +114,8 @@ def build_git_fixture(root, template_dir, *, branch="main",
       a skill's own rebase step). Commit message is fixed ("docs: update README") since the hook
       only edits files, not git.
 
-    Returns (project_path, {"origin_dev": <rev-parse of `branch` at origin after setup>}).
+    Returns (project_path, {"base_branch": branch, "origin_base_rev": <rev-parse of `branch` at
+    origin after setup>}).
     """
     origin, seed, project = root / "origin.git", root / "seed", root / "project"
     git("init", "-q", "--bare", "-b", branch, str(origin), cwd=root)
@@ -136,7 +136,7 @@ def build_git_fixture(root, template_dir, *, branch="main",
         diverge(seed)
         git("commit", "-q", "-am", "docs: update README", cwd=seed)
         git("push", "-q", "origin", branch, cwd=seed)
-    return project, {"origin_dev": git("rev-parse", branch, cwd=origin)}
+    return project, {"base_branch": branch, "origin_base_rev": git("rev-parse", branch, cwd=origin)}
 
 
 # ---------- running claude ----------
@@ -233,7 +233,7 @@ def render_transcript(phase, prompt, raw):
 class Ctx:
     """Helpers available to every check. A TestPlan can pass a subclass (via `ctx_factory`) that
     adds its own readers; whatever `build_project` returns as `ctx_extra` becomes attributes here
-    (e.g. `origin_dev`, used by `not_pushed`)."""
+    (e.g. `base_branch`/`origin_base_rev` from `build_git_fixture`, used by `not_pushed`)."""
 
     def __init__(self, project, tools, **extra):
         self.p, self.tools = project, tools
@@ -253,9 +253,12 @@ class Ctx:
     def branch(self):
         return git("branch", "--show-current", cwd=self.p)
 
-    def not_pushed(self, branch="dev"):
+    def not_pushed(self, branch=None):
+        """branch defaults to the fixture's own base branch (`base_branch` from
+        `build_git_fixture`); pass it explicitly if `ctx_extra` doesn't provide one."""
+        branch = branch or self.base_branch
         branches = git("branch", "--list", cwd=self.origin).replace("*", "").split()
-        return branches == [branch] and git("rev-parse", branch, cwd=self.origin) == getattr(self, "origin_dev", None)
+        return branches == [branch] and git("rev-parse", branch, cwd=self.origin) == self.origin_base_rev
 
 
 def general_checks(phase, run, ctx):
@@ -270,7 +273,7 @@ def general_checks(phase, run, ctx):
     if phase.expect_branch:
         pairs.append((f"still on branch {phase.expect_branch}", lambda: ctx.branch() == phase.expect_branch))
     if phase.expect_no_push:
-        pairs.append(("nothing pushed to origin", lambda: ctx.not_pushed(phase.expect_branch or "dev")))
+        pairs.append(("nothing pushed to origin", lambda: ctx.not_pushed(phase.expect_branch)))
     return check_list(pairs)
 
 

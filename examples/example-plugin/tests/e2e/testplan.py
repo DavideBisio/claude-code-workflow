@@ -25,16 +25,17 @@ def post_init(seed):
     would edit by hand before running example-run for the first time."""
     subprocess.run([sys.executable, str(PLUGIN / "scripts" / "example_data.py"), "init"],
                    cwd=seed, capture_output=True, check=True)
-    (seed / "example.data" / "config.yaml").write_text("test_command: python -m unittest\n")
+    (seed / "example.data" / "config.yaml").write_text(
+        "test_command: python -m unittest\n", encoding="utf-8")
     (seed / "example.data" / "project-prompt.md").write_text(
         "Small Python project. Run tests with `python -m unittest` from the project root. "
-        "Put tests in `tests/` (unittest), code in `app/`. Keep changes minimal.\n")
+        "Put tests in `tests/` (unittest), code in `app/`. Keep changes minimal.\n", encoding="utf-8")
 
 
 def diverge(seed):
     """Another developer pushes a README change after `project` is cloned, so example-run's own
     rebase step (section 1 of its SKILL.md) has work to do."""
-    (seed / "README.md").write_text("# demo\n\nUpdated by another developer.\n")
+    (seed / "README.md").write_text("# demo\n\nUpdated by another developer.\n", encoding="utf-8")
 
 
 def build_project(root):
@@ -54,7 +55,8 @@ def checks_run(c):
     return check_list([
         ("tracker data fetched", lambda: len(c.read_json("example.data/tracker/dev-status.json")["issues"]) == 3),
         ("dev rebased onto origin/dev", lambda: subprocess.run(
-            ["git", "merge-base", "--is-ancestor", "origin/dev", "HEAD"], cwd=c.p).returncode == 0
+            ["git", "merge-base", "--is-ancestor", "origin/dev", "HEAD"], cwd=c.p,
+            capture_output=True).returncode == 0
             and "docs: update README" in git("log", "--format=%s", cwd=c.p)),
         ("example.data committed", lambda: git("log", "-1", "--format=%s", cwd=c.p).startswith("chore")),
     ])

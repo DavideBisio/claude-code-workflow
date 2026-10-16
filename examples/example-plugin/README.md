@@ -19,7 +19,7 @@ tests/                       python -m unittest discover tests
 tests/e2e/harness.py         generic e2e engine: build fixture, invoke `claude -p`, verify, report
 tests/e2e/testplan.py        this plugin's TestPlan (skills, fixture template, goal checks)
 tests/e2e/fixtures/          fixture templates (plain file trees) for build_git_fixture
-tests/e2e/run_e2e.py        e2e: runs a TestPlan's skills through the claude CLI (spends tokens)
+tests/e2e/run_e2e.py         e2e: runs a TestPlan's skills through the claude CLI (spends tokens)
 ```
 
 ## Mock servers
@@ -31,13 +31,13 @@ CLI (prints JSON): `python mcp/dev-status/server.py list_issues '{"filter":{"sta
 `tracker/dev-status.json`, `tracker/req-tracker.json`, `state.json`, `config.yaml`, `project-prompt.md`. Created by `example-run`; the tracker files are overwritten on every fetch. `work/` is a gitignored scratch folder for step handoff. Every step asks the user before acting and ends with a summary.
 
 ## End-to-end test
-`harness.py` is a generic engine that drives any Claude Code skill through the `claude` CLI: build a
-throwaway project from a template, call `claude -p` with the skill's own text (gates pre-approved),
-collect the transcript and metrics, then check the result — first the checks that apply to any
-skill (did it error, did it use a tool, plus whichever opt-in git checks a phase asks for: clean
-tree, still on a branch, nothing pushed), then that skill's own goal checks. It has no knowledge of
-any particular plugin; that lives in a `TestPlan` (skills, a fixture-building hook, per-phase
-checks).
+`harness.py` is a generic engine that drives any Claude Code skill through the `claude` CLI, in
+five steps: build a throwaway project from a template, invoke `claude -p` with the skill's own text
+(gates pre-approved), collect the transcript and metrics, verify the result, report. Verification
+is layered — first the checks that apply to any skill (did it error, did it use a tool, plus
+whichever opt-in git checks a phase asks for: clean tree, still on a branch, nothing pushed), then
+that skill's own goal checks. `harness.py` has no knowledge of any particular plugin; that lives in
+a `TestPlan` (skills, a fixture-building hook, per-phase checks).
 
 `testplan.py` is this plugin's TestPlan: the `run`/`target`/`plan`/`execute`/`update` workflow,
 built on a fixture (`fixtures/basic-python/`) with a bare origin, a bug matching issue 2 / REQ-2,
@@ -54,6 +54,6 @@ afterwards), `--dry-run`. It sends each skill's text inline, so it does not test
 auto-invocation.
 
 ## Not done
-- Not yet loaded in Claude Code end to end.
+- Exercised via the e2e CLI harness, not yet loaded and driven interactively inside Claude Code itself.
 - Tool input schemas are loose (`additionalProperties: true`).
 - Status output of `example-run` is a placeholder.
