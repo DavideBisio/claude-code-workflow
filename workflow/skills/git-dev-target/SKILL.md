@@ -9,10 +9,12 @@ disable-model-invocation: false
 ## Setup
 Read `git-dev.data/config.yaml` and `git-dev.data/project-prompt.md` in the project root and follow the project prompt throughout.
 
-Work only from the existing files; do not fetch (that is `git-dev-run`'s job). Source of truth is `git-dev.data/tracker/mock-req-tracker.json`; issues come from `git-dev.data/tracker/mock-version-control.json`. If either is missing, stop and tell the user to run `git-dev-run` first.
+Work only from the existing files; do not fetch (that is `git-dev-run`'s job). Source of truth is `git-dev.data/tracker/req-tracker.json`; issues come from `git-dev.data/tracker/version-control.json`. If either is missing, stop and tell the user to run `git-dev-run` first.
+
+If `backends.req_tracker` is `github_labels` (check `config.yaml`): there is no separate `issues` vs `requirements` concept — the requirement issues themselves are the target. Pick the first opened requirement directly from `req-tracker.json` instead of step 1 below, and treat its own linked `coverage`/`specifications` entries as the lookup in step 1.
 
 ## Operation
-1. Take the first issue with `state: opened` in `mock-version-control.json`. Its `requirements` field lists requirement ids; look them up in `mock-req-tracker.json`, together with their `coverage` records, `specifications` and any `testplans` that mention their test cases.
+1. Take the first issue with `state: opened` in `version-control.json`. Its `requirements` field lists requirement ids; look them up in `req-tracker.json`, together with their `coverage` records, `specifications` and any `testplans` that mention their test cases.
 2. Where the issue text and the requirements disagree, the requirements win; say so. If there is no opened issue, or it has no requirements, stop and report.
 3. Identify the target: issue (iid, title), requirements (id, title, status), current coverage result and test cases per requirement, and the code area likely affected (mock: a one-line guess).
 

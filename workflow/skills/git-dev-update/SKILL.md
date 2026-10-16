@@ -15,17 +15,30 @@ Read `git-dev.data/work/plan.md` and `git-dev.data/work/result.json`. If either 
 Before calling any tool, list the calls you will make (coverage updates, merge request) and ask the user to confirm. Do not continue on a "no".
 
 ## Operation
-1. **Update the requirement tracker.** For each related requirement, as in the plan: `update_coverage` if a coverage record exists, otherwise `create_coverage`. Mock: acknowledged, no effect, so `mock-req-tracker.json` stays unchanged until the next fetch.
+First resolve which providers are active (prints the provider dir name, e.g. `mock-req-tracker` or `github-req-tracker`):
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/mcp/mock-req-tracker/server.py" update_coverage '{"id":"<coverage-id>","result":"passed","testcases":["<test-id>"]}'
-python "${CLAUDE_PLUGIN_ROOT}/mcp/mock-req-tracker/server.py" create_coverage '{"requirement_id":"<req-id>","result":"passed","testcases":["<test-id>"]}'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider req_tracker
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control
 ```
 
-2. **Merge request** (mock, acknowledged, no effect):
+Use the printed `dir` value in place of `<req-tracker-provider>` / `<version-control-provider>` below.
+
+1. **Update the requirement tracker.** For each related requirement, as in the plan: `update_coverage` if a coverage record exists, otherwise `create_coverage`.
+   - Mock provider: acknowledged, no effect; `req-tracker.json` stays unchanged until the next fetch.
+   - A `github-*` provider: this is a **real** action — it opens or closes/comments on a real GitHub issue. Say so plainly in the user gate above, not just "update the tracker".
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/mcp/mock-version-control/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"dev","closes":[<iid>]}'
+python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" update_coverage '{"id":"<coverage-id>","result":"passed","testcases":["<test-id>"]}'
+python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_coverage '{"requirement_id":"<req-id>","result":"passed","testcases":["<test-id>"]}'
+```
+
+2. **Merge request.**
+   - Mock provider: acknowledged, no effect.
+   - A `github-*` provider: opens a **real** pull request on the real repo. Say so plainly in the user gate above.
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"dev","closes":[<iid>]}'
 ```
 
 3. **Record and commit git-dev.data.** The sequence is complete, so record the step and commit the `git-dev.data` changes from steps 1 to 4 (the scratch folder `work/` is ignored). No push.

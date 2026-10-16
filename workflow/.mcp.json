@@ -7,6 +7,14 @@
     "mock-version-control": {
       "command": "python",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/mock-version-control/server.py"]
+    },
+    "github-req-tracker": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/github-req-tracker/server.py"]
+    },
+    "github-version-control": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/github-version-control/server.py"]
     }
   }
 }
