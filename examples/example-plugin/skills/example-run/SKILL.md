@@ -12,6 +12,7 @@ Work from the project root. Helper script: `python "${CLAUDE_PLUGIN_ROOT}/script
 All persistent files live in `example.data/` in the project root and are **committed** (not gitignored):
 - `tracker/dev-status.json` (`issues`, `merge_requests`, `milestones`) and `tracker/req-tracker.json` (`requirements`, `coverage`, `specifications`, `testplans`): latest tracker output.
 - `state.json`: last run completion date per step.
+- `work/`: scratch handoff between steps (`target.json`, `plan.md`, `result.json`); gitignored.
 - `config.yaml`: skill custom config. `project-prompt.md`: project-specific prompt read by every step.
 
 ```bash
@@ -54,7 +55,7 @@ git commit -m "chore: update example.data tracker output"
 
 ## 3. Ask the user what to do
 One question, with these options:
-- **Run a step**: ask which; the available steps are the plugin's `example-*` step skills (currently `example-step`).
+- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `example-target` (1), `example-plan` (2), `example-execute` (3), `example-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
 - **Return status**: show the workflow status.
 
 ## 4. Act on the choice

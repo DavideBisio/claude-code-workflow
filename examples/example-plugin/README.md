@@ -9,7 +9,10 @@ mcp/req-tracker/             mock Jama: requirements, coverage, specifications, 
 mcp/dev-status/              mock GitLab: issues, merge requests, milestones
 mcp/common/mockmcp.py        stdlib-only MCP stdio server + CLI used by both
 skills/example-run/          orchestrator: rebase dev, fetch tracker data, ask what to do
-skills/example-step/         step: failing test, fix, passing test, commit, coverage, MR
+skills/example-target/       step 1: pick the issue and requirements from the existing files
+skills/example-plan/         step 2: plan test-first fix, commit, tracker updates
+skills/example-execute/      step 3: branch, failing test, fix, passing test, commit
+skills/example-update/       step 4: coverage update, MR, commit example.data
 scripts/example_data.py      init / fetch / record-step for example.data/
 assets/example.data/         template copied into the target project
 tests/                       python -m unittest discover tests
@@ -21,7 +24,7 @@ Per resource: `list_<plural>` (optional exact-match `filter`), `get_<singular>` 
 CLI (prints JSON): `python mcp/dev-status/server.py list_issues '{"filter":{"state":"opened"}}'`, also `tools` and `call TOOL [JSON]`.
 
 ## example.data/ (in the target project, committed)
-`tracker/dev-status.json`, `tracker/req-tracker.json`, `state.json`, `config.yaml`, `project-prompt.md`. Created by `example-run`; the tracker files are overwritten on every fetch.
+`tracker/dev-status.json`, `tracker/req-tracker.json`, `state.json`, `config.yaml`, `project-prompt.md`. Created by `example-run`; the tracker files are overwritten on every fetch. `work/` is a gitignored scratch folder for step handoff. Every step asks the user before acting and ends with a summary.
 
 ## Not done
 - Not yet loaded in Claude Code end to end.

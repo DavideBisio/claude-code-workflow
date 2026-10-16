@@ -60,9 +60,9 @@ class DataScript(unittest.TestCase):
             req = json.loads((Path(tmp) / "example.data/tracker/req-tracker.json").read_text())
             self.assertEqual(len(dev["issues"]), 3)
             self.assertEqual(len(req["requirements"]), 3)
-            run(DATA, "record-step", "example-step", cwd=tmp)
+            run(DATA, "record-step", "example-target", cwd=tmp)
             state = json.loads((Path(tmp) / "example.data/state.json").read_text())
-            self.assertIn("example-step", state)
+            self.assertIn("example-target", state)
 
 
 if __name__ == "__main__":
