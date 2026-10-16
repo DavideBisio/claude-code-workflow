@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mock-req-tracker": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/mock-req-tracker/server.py"]
+    },
+    "mock-version-control": {
+      "command": "python",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/mock-version-control/server.py"]
+    }
+  }
+}
