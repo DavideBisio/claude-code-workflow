@@ -1,0 +1,3 @@
+# skill custom config
+# This repo's own tests live under workflow/, not the repo root.
+test_command: cd workflow && python -m unittest discover tests

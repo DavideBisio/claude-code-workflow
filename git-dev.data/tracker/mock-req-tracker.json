@@ -1,0 +1,71 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "title": "User can log in",
+      "status": "approved",
+      "specification_id": "SPEC-1"
+    },
+    {
+      "id": "REQ-2",
+      "title": "Empty input is rejected",
+      "status": "approved",
+      "specification_id": "SPEC-1"
+    },
+    {
+      "id": "REQ-3",
+      "title": "API is documented",
+      "status": "draft",
+      "specification_id": "SPEC-2"
+    }
+  ],
+  "coverage": [
+    {
+      "id": "COV-1",
+      "requirement_id": "REQ-1",
+      "testcases": [
+        "TC-1"
+      ],
+      "result": "passed"
+    },
+    {
+      "id": "COV-2",
+      "requirement_id": "REQ-2",
+      "testcases": [
+        "TC-2",
+        "TC-3"
+      ],
+      "result": "failed"
+    },
+    {
+      "id": "COV-3",
+      "requirement_id": "REQ-3",
+      "testcases": [],
+      "result": "not_covered"
+    }
+  ],
+  "specifications": [
+    {
+      "id": "SPEC-1",
+      "title": "Authentication and input handling",
+      "version": "1.0"
+    },
+    {
+      "id": "SPEC-2",
+      "title": "Documentation",
+      "version": "0.1"
+    }
+  ],
+  "testplans": [
+    {
+      "id": "TP-1",
+      "title": "Release v0.1",
+      "status": "in_progress",
+      "testcases": [
+        "TC-1",
+        "TC-2",
+        "TC-3"
+      ]
+    }
+  ]
+}
