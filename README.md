@@ -11,12 +11,26 @@ workflow/                         the workflow plugin (everything in it is mocke
 
 ## Install
 
+In a terminal's interactive `claude` REPL:
 ```
 /plugin marketplace add DavideBisio/claude-code-workflow
 /plugin install workflow@dev-workflows
 ```
+`dev-workflows` is the marketplace name (from `marketplace.json`), not the repo name.
 
-(or, from a local clone: `/plugin marketplace add /path/to/claude-code-workflow`)
+In the VS Code extension, `/plugin` isn't available; use `/plugins` (plural) instead to open the
+"Manage plugins" panel, add the marketplace on the Marketplaces tab, then install `workflow` from
+the Plugins tab.
+
+Non-interactively, from any shell:
+```
+claude plugin marketplace add DavideBisio/claude-code-workflow
+claude plugin install workflow@dev-workflows --scope user
+```
+
+From a local clone instead of GitHub: `/plugin marketplace add /path/to/claude-code-workflow` (or
+`./claude-code-workflow`/`../claude-code-workflow` — a bare `owner/repo`-shaped path is always read
+as a GitHub reference).
 
 ## workflow
 
