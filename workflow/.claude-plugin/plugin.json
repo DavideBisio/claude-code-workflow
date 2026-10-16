@@ -1,0 +1,8 @@
+{
+  "name": "workflow",
+  "version": "0.0.0",
+  "description": "A collection of Claude Code workflows: multi-step processes made of gated skills, optionally backed by mock MCP servers. Everything is a mock placeholder.",
+  "author": {
+    "name": "Davide Bisio"
+  }
+}
