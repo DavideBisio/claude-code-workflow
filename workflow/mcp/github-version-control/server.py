@@ -8,13 +8,17 @@ excludes the `req`/`test`/`dev` labels (that's the req-tracker's namespace); the
 GitHub issue/PR numbers formatted as `"#<number>"`, matching GitHub's own reference syntax, so
 cross-links between issues (see github-req-tracker) use the same token everywhere.
 
+Each issue also carries `blocks`/`blocked_by`: `#<number>` refs parsed from "Blocks #N"/"Blocked by
+#N" text in its body (see `ghcli.blocking_refs`) — a text heuristic, not GitHub's native sub-issue
+relationship, used by `git-dev-target` to avoid picking an issue out of order.
+
 Also a CLI: `python server.py tools | call TOOL [JSON] | TOOL [JSON]` (prints JSON).
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
-from ghcli import run, run_json, first_ref  # noqa: E402
+from ghcli import run, run_json, first_ref, blocking_refs  # noqa: E402
 from miniconfig import load as load_config, get as config_get  # noqa: E402
 from mockmcp import run_tools  # noqa: E402
 
@@ -33,11 +37,15 @@ def _state(raw):
 
 def _issue(rec):
     labels = [l["name"] for l in rec.get("labels", [])]
+    body = rec.get("body", "")
+    blocks, blocked_by = blocking_refs(body)
+    req_ref = first_ref(body, exclude=blocks + blocked_by)
     return {
         "id": f"#{rec['number']}", "iid": rec["number"], "title": rec["title"],
         "state": _state(rec["state"]), "milestone_id": (rec.get("milestone") or {}).get("number"),
         "labels": labels, "assignee": next((a["login"] for a in rec.get("assignees", [])), None),
-        "requirements": [first_ref(rec.get("body", ""))] if first_ref(rec.get("body", "")) else [],
+        "requirements": [req_ref] if req_ref else [],
+        "blocks": blocks, "blocked_by": blocked_by,
         "url": rec.get("url"),
     }
 

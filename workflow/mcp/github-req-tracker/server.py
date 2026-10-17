@@ -7,9 +7,15 @@ labeled GitHub issues (no separate tracker). Labels come from `git-dev.data/conf
   first `#<number>` reference found in the issue's body (the req it covers). `result` is "passed"
   if closed, else "not_covered".
 - `specifications` <- issues labeled `dev`, same linking. There is no GitHub concept of a
-  specification; these are planned dev actions for a requirement, repurposed into this slot so the
-  skills (which just display whatever is here) still surface them.
+  specification; these are planned dev actions, repurposed into this slot so the skills (which just
+  display whatever is here) still surface them. `requirement_id` is `None` when the body has no
+  `#<number>` reference — a standalone dev action with no linked requirement is a valid target on
+  its own, not an anomaly (not every feature needs req-level compliance).
 - `testplans` is always empty: no fourth label is defined for it.
+- `requirements`/`specifications` also carry `blocks`/`blocked_by`: `#<number>` refs parsed from
+  "Blocks #N"/"Blocked by #N" text in the body (see `ghcli.blocking_refs`) — a text heuristic, not
+  GitHub's native sub-issue relationship, used by `git-dev-target` to avoid picking a target out of
+  order.
 
 Ids are GitHub issue numbers formatted as `"#<number>"`. Unlike the mock server, `create_*`/
 `update_*` perform real actions (open/close/comment on real issues). `create_requirement` and
@@ -22,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
-from ghcli import run, run_json, first_ref  # noqa: E402
+from ghcli import run, run_json, first_ref, blocking_refs  # noqa: E402
 from miniconfig import load as load_config, get as config_get  # noqa: E402
 from mockmcp import run_tools  # noqa: E402
 
@@ -44,17 +50,22 @@ def _filtered(records, flt):
 
 
 def list_requirements(args):
-    out = [{"id": f"#{r['number']}", "title": r["title"],
-            "status": {"OPEN": "opened", "CLOSED": "closed"}.get(r["state"], r["state"].lower()),
-            "specification_id": None, "url": r.get("url")}
-           for r in _by_label(LABELS["requirement"])]
+    out = []
+    for r in _by_label(LABELS["requirement"]):
+        blocks, blocked_by = blocking_refs(r.get("body", ""))
+        out.append({"id": f"#{r['number']}", "title": r["title"],
+                     "status": {"OPEN": "opened", "CLOSED": "closed"}.get(r["state"], r["state"].lower()),
+                     "specification_id": None, "blocks": blocks, "blocked_by": blocked_by,
+                     "url": r.get("url")})
     return _filtered(out, args.get("filter") or {})
 
 
 def list_coverage(args):
     out = []
     for r in _by_label(LABELS["test"]):
-        req_id = first_ref(r.get("body", ""))
+        body = r.get("body", "")
+        blocks, blocked_by = blocking_refs(body)
+        req_id = first_ref(body, exclude=blocks + blocked_by)
         out.append({"id": f"#{r['number']}", "requirement_id": req_id, "testcases": [f"#{r['number']}"],
                     "result": "passed" if r["state"] == "CLOSED" else "not_covered",
                     "title": r["title"], "url": r.get("url")})
@@ -64,10 +75,12 @@ def list_coverage(args):
 def list_specifications(args):
     out = []
     for r in _by_label(LABELS["dev"]):
-        req_id = first_ref(r.get("body", ""))
+        body = r.get("body", "")
+        blocks, blocked_by = blocking_refs(body)
+        req_id = first_ref(body, exclude=blocks + blocked_by)
         out.append({"id": f"#{r['number']}", "requirement_id": req_id, "title": r["title"],
                     "state": {"OPEN": "opened", "CLOSED": "closed"}.get(r["state"], r["state"].lower()),
-                    "url": r.get("url")})
+                    "blocks": blocks, "blocked_by": blocked_by, "url": r.get("url")})
     return _filtered(out, args.get("filter") or {})
 
 

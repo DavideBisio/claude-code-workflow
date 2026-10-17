@@ -55,8 +55,13 @@ prints which provider dir is active.
     `coverage` <- issues labeled `test` (`github.labels.test`), each one its own testcase, linked to
     its requirement via the first `#<number>` reference in the issue body; `specifications` <-
     issues labeled `dev` (`github.labels.dev`), repurposed as "planned dev actions" since GitHub has
-    no spec concept; `testplans` is always empty (no fourth label defined). See the commented
-    example in `assets/git-dev.data/config.yaml`.
+    no spec concept — a specification with no linked requirement (`requirement_id: null`) is a
+    valid standalone target, not an anomaly; `testplans` is always empty (no fourth label defined).
+    See the commented example in `assets/git-dev.data/config.yaml`.
+  - Issues, requirements and specifications also carry `blocks`/`blocked_by`: `#<number>` refs
+    parsed from "Blocks #N"/"Blocked by #N" text in the body (`mcp/common/ghcli.py:blocking_refs`)
+    — a text heuristic, not GitHub's native sub-issue relationship — used by `git-dev-target` to
+    avoid picking a target out of order.
 
 ### Testing
 Run from `workflow/` (this directory):
@@ -112,5 +117,6 @@ auto-invocation.
 - Tool input schemas are loose (`additionalProperties: true`).
 - Status output of `git-dev-run` just replays step 1/2's summaries and each step's last run date; no aggregate reporting (e.g. coverage trends over time).
 - github-* providers don't auto-create the `req`/`test`/`dev` labels; `gh label create` them once per repo before use.
+- `blocks`/`blocked_by` is a plain "Blocks #N"/"Blocked by #N" text match over the issue body, not GitHub's native sub-issue/blocked-by relationship; `git-dev-target` treats it as a hint to surface, not an authoritative dependency graph.
 - `tests/e2e/testplan.py`'s goal checks still assert the pre-`handoff_manager.py` file shape (`work/target.json`, `work/plan.md`, `work/result.json`, a `git-dev.data` commit per step) and will fail as written; updating them is deferred to a follow-up issue by design (see issue #19's acceptance criteria).
 - The e2e harness only exercises the mock providers; the github-* providers are only covered by unit tests of their no-`gh`-call surface (tool listing) plus manual checks against a real repo.
