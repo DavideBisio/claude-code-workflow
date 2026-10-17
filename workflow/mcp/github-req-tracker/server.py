@@ -12,7 +12,9 @@ labeled GitHub issues (no separate tracker). Labels come from `git-dev.data/conf
 - `testplans` is always empty: no fourth label is defined for it.
 
 Ids are GitHub issue numbers formatted as `"#<number>"`. Unlike the mock server, `create_*`/
-`update_*` perform real actions (open/close/comment on real issues).
+`update_*` perform real actions (open/close/comment on real issues). `create_requirement` and
+`create_specification` open `req`-/`dev`-labeled issues directly; only coverage has an `update_*`
+(close/reopen a test issue) since requirements and specifications have no result to flip here.
 
 Also a CLI: `python server.py tools | call TOOL [JSON] | TOOL [JSON]` (prints JSON).
 """
@@ -85,12 +87,35 @@ def get_requirement(args):
     return _get(list_requirements, args)
 
 
+def create_requirement(args):
+    title = args.get("title") or "Untitled requirement"
+    body = args.get("body", "")
+    try:
+        url = run(["issue", "create", "--title", title, "--body", body,
+                   "--label", LABELS["requirement"]], repo=REPO).strip()
+        return {"ok": True, "url": url}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def get_coverage(args):
     return _get(list_coverage, args)
 
 
 def get_specification(args):
     return _get(list_specifications, args)
+
+
+def create_specification(args):
+    req_id = str(args.get("requirement_id", "")).lstrip("#")
+    title = args.get("title") or (f"Dev action for #{req_id}" if req_id else "Untitled dev action")
+    body = (f"Refs #{req_id}\n\n" if req_id else "") + args.get("body", "")
+    try:
+        url = run(["issue", "create", "--title", title, "--body", body,
+                   "--label", LABELS["dev"]], repo=REPO).strip()
+        return {"ok": True, "url": url}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def create_coverage(args):
@@ -122,12 +147,14 @@ def update_coverage(args):
 TOOLS = {
     "list_requirements": (f"List requirements (issues labeled `{LABELS['requirement']}`). Optional exact-match `filter`.", list_requirements),
     "get_requirement": ("Get one requirement by `id` (\"#<number>\").", get_requirement),
+    "create_requirement": (f"Open a real requirement issue labeled `{LABELS['requirement']}`: optional `title`/`body`.", create_requirement),
     "list_coverage": (f"List coverage records (issues labeled `{LABELS['test']}`). Optional exact-match `filter`.", list_coverage),
     "get_coverage": ("Get one coverage record by `id`.", get_coverage),
     "create_coverage": ("Open a real test issue for a requirement: `requirement_id`, optional `title`/`body`.", create_coverage),
     "update_coverage": ("Close (result=passed) or reopen+comment (result=failed/not_covered) a test issue by `id`.", update_coverage),
     "list_specifications": (f"List dev actions (issues labeled `{LABELS['dev']}`), repurposed into this slot. Optional exact-match `filter`.", list_specifications),
     "get_specification": ("Get one dev-action record by `id`.", get_specification),
+    "create_specification": (f"Open a real dev-action issue labeled `{LABELS['dev']}`: optional `requirement_id`, `title`/`body`.", create_specification),
     "list_testplans": ("Always empty: no label is defined for testplans.", list_testplans),
 }
 
