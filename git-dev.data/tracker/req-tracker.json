@@ -6,14 +6,14 @@
       "id": "#7",
       "requirement_id": "#3",
       "title": "Fix github-version-control: add create_issue tool",
-      "state": "opened",
+      "state": "closed",
       "url": "https://github.com/DavideBisio/claude-code-workflow/issues/7"
     },
     {
       "id": "#6",
       "requirement_id": "#4",
       "title": "Fix github-req-tracker: add create_requirement tool",
-      "state": "opened",
+      "state": "closed",
       "url": "https://github.com/DavideBisio/claude-code-workflow/issues/6"
     },
     {

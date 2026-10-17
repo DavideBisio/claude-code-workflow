@@ -2,6 +2,20 @@
   "issues": [],
   "merge_requests": [
     {
+      "id": "#8",
+      "iid": 8,
+      "title": "Add missing create_* tools to github-req-tracker and github-version-control",
+      "state": "merged",
+      "source_branch": "fix/github-provider-gaps",
+      "target_branch": "main",
+      "pipeline": "unknown",
+      "closes": [
+        6,
+        7
+      ],
+      "url": "https://github.com/DavideBisio/claude-code-workflow/pull/8"
+    },
+    {
       "id": "#2",
       "iid": 2,
       "title": "Add pluggable version-control/req-tracker backends (custom MCP providers)",
