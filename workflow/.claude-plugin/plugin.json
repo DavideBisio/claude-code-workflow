@@ -1,6 +1,6 @@
 {
   "name": "workflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A collection of Claude Code workflows: multi-step processes made of gated skills, backed by pluggable MCP-shaped providers (mock sample data by default, or real gh-CLI-backed providers).",
   "author": {
     "name": "Davide Bisio"

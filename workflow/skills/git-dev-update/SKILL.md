@@ -15,8 +15,17 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get result
 ```
 If either returns an `error`, or `result.test_after` is not `passed`, stop and tell the user to run `git-dev-execute` first. Check that the current branch is `result.branch` and its latest commit is `result.commit`.
 
+## Pre-PR gate check
+Before the user gate below, re-read `project-prompt.md` specifically for any pre-PR requirements it
+lists (version bumps, changelog entries, label setup, etc.) and check each one off explicitly —
+don't rely on having read the file once at Setup. If a requirement isn't met, say so and ask the
+user whether to complete it (e.g. make the commit that bumps a version file) before opening the
+merge request, rather than opening it first and fixing it after.
+
 ## User gate
-Before calling any tool, list the calls you will make (coverage updates, merge request) and ask the user to confirm. Do not continue on a "no".
+Before calling any tool, list the calls you will make (coverage updates, merge request, and — for
+a `github-*` version-control provider — pushing the branch, since a real PR cannot exist without
+the branch on the remote) and ask the user to confirm. Do not continue on a "no".
 
 ## Operation
 First resolve which providers are active (prints the provider dir name, e.g. `mock-req-tracker` or `github-req-tracker`):
@@ -39,9 +48,13 @@ python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_cover
 
 2. **Merge request.**
    - Mock provider: acknowledged, no effect.
-   - A `github-*` provider: opens a **real** pull request on the real repo. Say so plainly in the user gate above.
+   - A `github-*` provider: this needs the branch on the remote first, which this workflow has not
+     done before now (`git-dev-execute` never pushes). Push it — `git push -u origin <branch>` —
+     only after the user gate above has covered this push explicitly, then open the **real** pull
+     request on the real repo.
 
 ```bash
+git push -u origin <branch>
 python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"dev","closes":[<iid>]}'
 ```
 
@@ -56,4 +69,5 @@ Report in a few lines: the issue, requirements, test results (before and after),
 
 ## Behavior
 - Don't guess: list missing or conflicting data as open questions.
-- Never push or touch other branches.
+- Never touch other branches. The only push this workflow ever makes is the one above, for a
+  `github-*` provider's real merge request, and only after the user gate covers it explicitly.
