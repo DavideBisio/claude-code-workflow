@@ -20,21 +20,21 @@
       "id": "#5",
       "requirement_id": null,
       "title": "Develop \"git-dev-new-test\" skill",
-      "state": "opened",
+      "state": "closed",
       "url": "https://github.com/DavideBisio/claude-code-workflow/issues/5"
     },
     {
       "id": "#4",
       "requirement_id": "#6",
       "title": "Develop \"git-dev-new-req\" skill",
-      "state": "opened",
+      "state": "closed",
       "url": "https://github.com/DavideBisio/claude-code-workflow/issues/4"
     },
     {
       "id": "#3",
       "requirement_id": "#7",
       "title": "Develop \"git-dev-new-issue\" skill",
-      "state": "opened",
+      "state": "closed",
       "url": "https://github.com/DavideBisio/claude-code-workflow/issues/3"
     }
   ],

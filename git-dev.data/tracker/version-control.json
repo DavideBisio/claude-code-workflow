@@ -19,12 +19,14 @@
       "id": "#12",
       "iid": 12,
       "title": "Add git-dev-new-issue, git-dev-new-req, git-dev-new-test skills",
-      "state": "opened",
+      "state": "merged",
       "source_branch": "feat/git-dev-new-skills",
       "target_branch": "main",
       "pipeline": "unknown",
       "closes": [
-        3
+        3,
+        4,
+        5
       ],
       "url": "https://github.com/DavideBisio/claude-code-workflow/pull/12"
     },
