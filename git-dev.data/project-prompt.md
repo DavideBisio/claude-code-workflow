@@ -23,3 +23,7 @@ run here is the same workflow this repo develops and ships (see `README.md` and
 - Known gaps (see workflow/README.md "Not done"): status output of `git-dev-run` is a placeholder;
   github-* providers are only unit-tested on their no-`gh`-call surface, not exercised by the e2e
   harness (which only covers the mock providers).
+- Version bumps: `workflow/.claude-plugin/plugin.json`'s `version` must be bumped inside the same PR
+  that merges to `main`, not as a separate follow-up commit afterward. (Previously a version bump
+  landed on `dev` after a PR had already merged to `main`, so `main` shipped stale version metadata
+  until the next unrelated PR happened to carry it along.)

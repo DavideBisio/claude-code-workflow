@@ -153,11 +153,13 @@ class GithubProviders(unittest.TestCase):
     def test_tools_listed(self):
         dev_tools = {t["name"] for t in json.loads(run(GH_DEV, "tools").stdout)}
         req_tools = {t["name"] for t in json.loads(run(GH_REQ, "tools").stdout)}
-        self.assertEqual(dev_tools, {"list_issues", "get_issue", "list_merge_requests", "get_merge_request",
+        self.assertEqual(dev_tools, {"list_issues", "get_issue", "create_issue", "update_issue",
+                                     "list_merge_requests", "get_merge_request",
                                      "create_merge_request", "list_milestones", "get_milestone"})
-        self.assertEqual(req_tools, {"list_requirements", "get_requirement", "list_coverage", "get_coverage",
+        self.assertEqual(req_tools, {"list_requirements", "get_requirement", "create_requirement",
+                                     "list_coverage", "get_coverage",
                                      "create_coverage", "update_coverage", "list_specifications",
-                                     "get_specification", "list_testplans"})
+                                     "get_specification", "create_specification", "list_testplans"})
 
     def test_unknown_tool_fails(self):
         res = run(GH_DEV, "nope")
