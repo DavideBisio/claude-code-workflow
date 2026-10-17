@@ -3,6 +3,41 @@
   "coverage": [],
   "specifications": [
     {
+      "id": "#20",
+      "requirement_id": "#19",
+      "title": "Update tests and mock providers for the handoff-manager rework",
+      "state": "opened",
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/20"
+    },
+    {
+      "id": "#19",
+      "requirement_id": "#18",
+      "title": "Add handoff-manager to scope, validate and stop committing git-dev.data",
+      "state": "opened",
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/19"
+    },
+    {
+      "id": "#18",
+      "requirement_id": null,
+      "title": "Evaluate agent layer and new skills for git-dev workflow",
+      "state": "opened",
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/18"
+    },
+    {
+      "id": "#17",
+      "requirement_id": null,
+      "title": "Support custom providers for git-dev backends",
+      "state": "opened",
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/17"
+    },
+    {
+      "id": "#13",
+      "requirement_id": "#8",
+      "title": "git-dev: merge main back into dev after any PR that merges to main",
+      "state": "closed",
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/13"
+    },
+    {
       "id": "#7",
       "requirement_id": "#3",
       "title": "Fix github-version-control: add create_issue tool",

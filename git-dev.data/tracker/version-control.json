@@ -1,17 +1,19 @@
 {
   "issues": [
     {
-      "id": "#13",
-      "iid": 13,
-      "title": "git-dev: merge main back into dev after any PR that merges to main",
+      "id": "#21",
+      "iid": 21,
+      "title": "Compare with similar projects and harvest reusable ideas",
       "state": "opened",
       "milestone_id": null,
-      "labels": [],
+      "labels": [
+        "todo"
+      ],
       "assignee": null,
       "requirements": [
-        "#8"
+        "#19"
       ],
-      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/13"
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/21"
     }
   ],
   "merge_requests": [
