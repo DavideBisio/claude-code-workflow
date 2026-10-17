@@ -45,6 +45,15 @@ git rebase origin/dev
 - Report the new commits (the `log` output above). If the rebase conflicts, stop, list the conflicting files and ask; use `git rebase --abort` only if the user says so.
 - Do not run `git reset` or push.
 
+### Check for drift against `main` (fallback only)
+Some projects PR feature branches straight to `main` rather than through `git-dev-update`'s own target (which defaults to `dev`). The primary place to keep `dev` in sync is right after such a PR merges to `main` (see that project's own conventions, e.g. `project-prompt.md`, if it documents this) — not here. This check is only the fallback for when that didn't happen:
+
+```bash
+git fetch origin main
+git log --oneline dev..origin/main
+```
+If `origin/main` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `dev` has drifted behind `main`: tell the user plainly what's missing, then merge `origin/main` into `dev` to close the gap (confirm before pushing). Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
+
 ## 2. Fetch tracker updates
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" fetch

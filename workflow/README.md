@@ -23,6 +23,9 @@ skills/git-dev-target/            step 1: pick the issue and requirements from t
 skills/git-dev-plan/              step 2: plan test-first fix, commit, tracker updates
 skills/git-dev-execute/           step 3: branch, failing test, fix, passing test, commit
 skills/git-dev-update/            step 4: coverage update, MR, commit git-dev.data
+skills/git-dev-new-issue/         on-demand: create a version-control issue via the configured provider
+skills/git-dev-new-req/           on-demand: create a requirement via the configured req_tracker provider
+skills/git-dev-new-test/          on-demand: create a coverage/testcase record for a requirement
 scripts/git_dev_data.py           init / fetch / record-step / provider for git-dev.data/
 assets/git-dev.data/              template copied into the target project
 tests/                            python -m unittest discover tests
