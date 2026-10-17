@@ -14,6 +14,7 @@ GH_REQ = ROOT / "mcp" / "github-req-tracker" / "server.py"
 DATA = ROOT / "scripts" / "git_dev_data.py"
 sys.path.insert(0, str(ROOT / "mcp" / "common"))
 import miniconfig  # noqa: E402
+import ghcli  # noqa: E402
 
 
 def run(*args, cwd=None, stdin=None):
@@ -144,6 +145,30 @@ class MiniConfig(unittest.TestCase):
 
     def test_missing_file_is_empty(self):
         self.assertEqual(miniconfig.load(Path("does/not/exist.yaml")), {})
+
+
+class GhCli(unittest.TestCase):
+    def test_blocks_and_blocked_by_refs(self):
+        blocks, blocked_by = ghcli.blocking_refs(
+            "Blocks #18, it's a prerequisite for subagents. Blocked by #5 for now.")
+        self.assertEqual(blocks, ["#18"])
+        self.assertEqual(blocked_by, ["#5"])
+
+    def test_no_refs_returns_empty_lists(self):
+        self.assertEqual(ghcli.blocking_refs(""), ([], []))
+        self.assertEqual(ghcli.blocking_refs(None), ([], []))
+
+    def test_blocked_by_not_also_matched_as_blocks(self):
+        blocks, blocked_by = ghcli.blocking_refs("Blocked by #7")
+        self.assertEqual(blocks, [])
+        self.assertEqual(blocked_by, ["#7"])
+
+    def test_first_ref_skips_excluded_numbers(self):
+        self.assertEqual(
+            ghcli.first_ref("Blocks #18, it's a prerequisite. See also #20.", exclude=["#18"]), "#20")
+
+    def test_first_ref_default_behavior_unchanged(self):
+        self.assertEqual(ghcli.first_ref("Refs #5 and #6"), "#5")
 
 
 class GithubProviders(unittest.TestCase):

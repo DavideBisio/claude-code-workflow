@@ -9,11 +9,20 @@ disable-model-invocation: true
 Work from the project root. Helper script: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py"`. Every provider (mock or github-backed) also has a JSON CLI (the MCP tools of the same names are equivalent).
 
 ## 0. Project data folder
-All persistent files live in `git-dev.data/` in the project root and are **committed** (not gitignored):
-- `tracker/version-control.json` (`issues`, `merge_requests`, `milestones`) and `tracker/req-tracker.json` (`requirements`, `coverage`, `specifications`, `testplans`): latest tracker output. Each is produced by whichever provider `config.yaml`'s `backends.version_control` / `backends.req_tracker` names (defaults to the mock servers; see the commented example in `config.yaml` for the `github` / `github_labels` options). Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control` (or `req_tracker`) to see which is active.
-- `state.json`: last run completion date per step.
-- `work/`: scratch handoff between steps (`target.json`, `plan.md`, `result.json`); gitignored.
-- `config.yaml`: skill custom config. `project-prompt.md`: project-specific prompt read by every step.
+`git-dev.data/` in the project root splits into durable, committed config and ephemeral,
+gitignored data:
+- **Committed**: `config.yaml` (skill custom config), `project-prompt.md` (project-specific prompt
+  read by every step).
+- **Gitignored (regenerated, never committed by any step)**: `tracker/version-control.json`
+  (`issues`, `merge_requests`, `milestones`) and `tracker/req-tracker.json` (`requirements`,
+  `coverage`, `specifications`, `testplans`) — the latest full tracker output, written by this
+  step's fetch below, for picking which issue to target next. Each is produced by whichever
+  provider `config.yaml`'s `backends.version_control` / `backends.req_tracker` names (defaults to
+  the mock servers). Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider
+  version_control` (or `req_tracker`) to see which is active. `state.json`: last run completion
+  date per step. `work/handoff.json`: the scoped, schema-validated handoff between steps
+  (`target`/`plan`/`result` sections), written and read only through `scripts/handoff_manager.py`
+  — see that step's own skill for its shape.
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" init
@@ -46,7 +55,10 @@ git rebase origin/dev
 - Do not run `git reset` or push.
 
 ### Check for drift against `main` (fallback only)
-Some projects PR feature branches straight to `main` rather than through `git-dev-update`'s own target (which defaults to `dev`). The primary place to keep `dev` in sync is right after such a PR merges to `main` (see that project's own conventions, e.g. `project-prompt.md`, if it documents this) — not here. This check is only the fallback for when that didn't happen:
+`git-dev-update` targets `main` for its merge request by default (see that skill) — `dev` is only
+the branch-cut source, kept in sync *from* `main` right after each such PR merges, as the next
+action at the time, not something to catch later (see `project-prompt.md` if it documents a
+project-specific variant). This check is only the fallback for when that sync got missed:
 
 ```bash
 git fetch origin main
@@ -59,12 +71,10 @@ If `origin/main` doesn't exist for this project, skip this check. Otherwise, if 
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" fetch
 ```
 
-This overwrites both files in `git-dev.data/tracker/` (via whichever provider is configured). Read them and summarize only what matters: open issues and merge requests, milestones, failed or uncovered requirements. If a `github`-backed provider errors (e.g. `gh` not installed/authenticated), stop and report the error rather than falling back silently. If `git-dev.data/` changed, commit it (this path only, no push):
-
-```bash
-git add git-dev.data
-git commit -m "chore: update git-dev.data tracker output"
-```
+This overwrites both files in `git-dev.data/tracker/` (via whichever provider is configured;
+gitignored, never committed). Read them and summarize only what matters: open issues and merge
+requests, milestones, failed or uncovered requirements. If a `github`-backed provider errors (e.g.
+`gh` not installed/authenticated), stop and report the error rather than falling back silently.
 
 ## 3. Ask the user what to do
 One question, with these options:

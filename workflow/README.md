@@ -6,7 +6,9 @@ also available). Currently it bundles one workflow, `git-dev`.
 
 ## git-dev
 
-A four-step dev workflow (target an issue, plan a test-first fix, execute it, update the tracker):
+A four-step dev workflow (target an issue, plan a test-first fix, execute it, update the tracker),
+run through the `git-dev-run` orchestrator, plus three on-demand skills (`git-dev-new-issue`,
+`git-dev-new-req`, `git-dev-new-test`) for creating tracker records outside that flow:
 
 ```
 .claude-plugin/plugin.json        manifest
@@ -27,6 +29,7 @@ skills/git-dev-new-issue/         on-demand: create a version-control issue via 
 skills/git-dev-new-req/           on-demand: create a requirement via the configured req_tracker provider
 skills/git-dev-new-test/          on-demand: create a coverage/testcase record for a requirement
 scripts/git_dev_data.py           init / fetch / record-step / provider for git-dev.data/
+scripts/handoff_manager.py        scoped, schema-validated step handoff (target/plan/result)
 assets/git-dev.data/              template copied into the target project
 tests/                            python -m unittest discover tests
 tests/e2e/harness.py              generic e2e engine: build fixture, invoke `claude -p`, verify, report
@@ -52,8 +55,13 @@ prints which provider dir is active.
     `coverage` <- issues labeled `test` (`github.labels.test`), each one its own testcase, linked to
     its requirement via the first `#<number>` reference in the issue body; `specifications` <-
     issues labeled `dev` (`github.labels.dev`), repurposed as "planned dev actions" since GitHub has
-    no spec concept; `testplans` is always empty (no fourth label defined). See the commented
-    example in `assets/git-dev.data/config.yaml`.
+    no spec concept — a specification with no linked requirement (`requirement_id: null`) is a
+    valid standalone target, not an anomaly; `testplans` is always empty (no fourth label defined).
+    See the commented example in `assets/git-dev.data/config.yaml`.
+  - Issues, requirements and specifications also carry `blocks`/`blocked_by`: `#<number>` refs
+    parsed from "Blocks #N"/"Blocked by #N" text in the body (`mcp/common/ghcli.py:blocking_refs`)
+    — a text heuristic, not GitHub's native sub-issue relationship — used by `git-dev-target` to
+    avoid picking a target out of order.
 
 ### Testing
 Run from `workflow/` (this directory):
@@ -72,12 +80,14 @@ real `gh` actions.
 
 CLI (prints JSON): `python mcp/mock-version-control/server.py list_issues '{"filter":{"state":"opened"}}'`, also `tools` and `call TOOL [JSON]`. Same for any other provider dir under `mcp/`.
 
-### git-dev.data/ (in the target project, committed)
-`tracker/version-control.json`, `tracker/req-tracker.json`, `state.json`, `config.yaml`,
-`project-prompt.md`. Created by `git-dev-run`; the tracker files are overwritten on every fetch,
-regardless of which provider produced them (see **Providers (backends)** above). `work/` is a
-gitignored scratch folder for step handoff. Every step asks the user before acting and ends with a
-summary.
+### git-dev.data/ (in the target project)
+Durable and committed: `config.yaml`, `project-prompt.md`. Gitignored and regenerated, never
+committed by any step: `tracker/version-control.json`, `tracker/req-tracker.json` (overwritten on
+every `git-dev-run` fetch, used only to pick which issue to target next — see **Providers
+(backends)** above), `state.json` (last run date per step), `work/handoff.json` (the scoped,
+schema-validated handoff between steps, written and read one section at a time — `scope`/`target`/
+`plan`/`result` — only through `scripts/handoff_manager.py`, never as raw tracker dumps). Created
+by `git-dev-run`. Every step asks the user before acting and ends with a summary.
 
 ### End-to-end test
 `harness.py` is a generic engine that drives any Claude Code skill through the `claude` CLI, in
@@ -105,6 +115,8 @@ auto-invocation.
 ### Not done
 - Exercised via the e2e CLI harness, not yet loaded and driven interactively inside Claude Code itself.
 - Tool input schemas are loose (`additionalProperties: true`).
-- Status output of `git-dev-run` is a placeholder.
+- Status output of `git-dev-run` just replays step 1/2's summaries and each step's last run date; no aggregate reporting (e.g. coverage trends over time).
 - github-* providers don't auto-create the `req`/`test`/`dev` labels; `gh label create` them once per repo before use.
+- `blocks`/`blocked_by` is a plain "Blocks #N"/"Blocked by #N" text match over the issue body, not GitHub's native sub-issue/blocked-by relationship; `git-dev-target` treats it as a hint to surface, not an authoritative dependency graph.
+- `tests/e2e/testplan.py`'s goal checks still assert the pre-`handoff_manager.py` file shape (`work/target.json`, `work/plan.md`, `work/result.json`, a `git-dev.data` commit per step) and will fail as written; updating them is deferred to a follow-up issue by design (see issue #19's acceptance criteria).
 - The e2e harness only exercises the mock providers; the github-* providers are only covered by unit tests of their no-`gh`-call surface (tool listing) plus manual checks against a real repo.

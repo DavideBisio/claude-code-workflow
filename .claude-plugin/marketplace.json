@@ -8,7 +8,7 @@
     {
       "name": "workflow",
       "source": "./workflow",
-      "description": "A collection of Claude Code workflows: multi-step processes made of gated skills, optionally backed by mock MCP servers. Everything is a mock placeholder."
+      "description": "A collection of Claude Code workflows: multi-step processes made of gated skills, backed by pluggable MCP-shaped providers (mock sample data by default, or real gh-CLI-backed providers)."
     }
   ]
 }
