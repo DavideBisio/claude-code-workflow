@@ -33,10 +33,15 @@ run here is the same workflow this repo develops and ships (see `README.md` and
   2. Before opening *any* merge/pull request, re-check this file's pre-PR requirements explicitly as
      a checklist (this is what `git-dev-update`'s "Pre-PR gate check" step asks for) rather than
      relying on having read it once at the start of the run.
-- PRs to `main` specifically (feature branches cut from `dev`, PR'd directly to `main` rather than
-  through `git-dev-update`'s own default target `dev`): right after such a PR merges into `main` —
-  as the last step of that unit of work, not lazily caught later — merge `main` back into `dev` so
-  `dev` never falls behind (PR #8's provider fixes landed on `main` only and were missed by the next
-  `dev`-branched feature until caught manually). `git-dev-run` step 1 also checks for this drift at
-  the start of the next session as a fallback, but that is not the primary mechanism — don't rely on
-  it.
+- Branching model: feature branches are cut from `dev` (via `git-dev-plan`/`git-dev-execute`), but
+  `git-dev-update`'s merge request targets `main` directly, by default, for every PR — not just an
+  occasional exception. `dev` is only the branch-cut source; it is never a PR target itself. Right
+  after such a PR merges into `main` — as the next action at the time, not lazily caught later —
+  merge `main` back into `dev` so `dev` never falls behind (PR #8's provider fixes landed on `main`
+  only and were missed by the next `dev`-branched feature until caught manually). `git-dev-run`
+  step 1 also checks for this drift at the start of the next session as a fallback, but that is not
+  the primary mechanism — don't rely on it.
+  - This wasn't always the rule: PR #24 (issue #19) initially targeted `dev` as the then-documented
+    default, which meant GitHub's `Closes #N` never fired on merge — closing keywords only resolve
+    on a default-branch (`main`) merge. That left #19/#22/#23 open despite being fixed and merged,
+    and is tracked as issue #25, fixed by making `main` the default target going forward.

@@ -55,7 +55,10 @@ git rebase origin/dev
 - Do not run `git reset` or push.
 
 ### Check for drift against `main` (fallback only)
-Some projects PR feature branches straight to `main` rather than through `git-dev-update`'s own target (which defaults to `dev`). The primary place to keep `dev` in sync is right after such a PR merges to `main` (see that project's own conventions, e.g. `project-prompt.md`, if it documents this) — not here. This check is only the fallback for when that didn't happen:
+`git-dev-update` targets `main` for its merge request by default (see that skill) — `dev` is only
+the branch-cut source, kept in sync *from* `main` right after each such PR merges, as the next
+action at the time, not something to catch later (see `project-prompt.md` if it documents a
+project-specific variant). This check is only the fallback for when that sync got missed:
 
 ```bash
 git fetch origin main

@@ -21,7 +21,7 @@ Draft a plan; change nothing in the repository yet.
 3. **Fix (mock)**: the intended change, kept small.
 4. **Verification**: the test must pass after the fix (at most 3 tries).
 5. **Commit**: one commit with fix and test, message referencing `Refs #<iid>` and the requirement ids. No push.
-6. **Tracker updates** (for `git-dev-update`): per requirement, `update_coverage` if a coverage record exists, otherwise `create_coverage`, with the test ids; plus the merge request title, source branch and target `dev`.
+6. **Tracker updates** (for `git-dev-update`): per requirement, `update_coverage` if a coverage record exists, otherwise `create_coverage`, with the test ids; plus the merge request title, source branch and target `main` (the branch itself is cut from `dev`; the PR targets `main` directly — see `git-dev-update`).
 7. Risks and open questions.
 
 ## User gate

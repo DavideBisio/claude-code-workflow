@@ -46,7 +46,11 @@ python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" update_cover
 python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_coverage '{"requirement_id":"<req-id>","result":"passed","testcases":["<test-id>"]}'
 ```
 
-2. **Merge request.**
+2. **Merge request, targeting `main`.** The branch was cut from `dev` (see `git-dev-plan`/
+   `git-dev-execute`), but the PR itself targets `main`, not `dev` — `dev` is only the branch-cut
+   source, kept in sync *from* `main` after each merge (see `project-prompt.md`), not something PRs
+   land on directly. Targeting `dev` here means GitHub's `Closes #N` keyword never fires, since it
+   only auto-closes on a default-branch merge — found the hard way in issue #25.
    - Mock provider: acknowledged, no effect.
    - A `github-*` provider: this needs the branch on the remote first, which this workflow has not
      done before now (`git-dev-execute` never pushes). Push it — `git push -u origin <branch>` —
@@ -55,7 +59,7 @@ python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_cover
 
 ```bash
 git push -u origin <branch>
-python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"dev","closes":[<iid>]}'
+python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"main","closes":[<iid>]}'
 ```
 
 3. **Record the step.** The sequence is complete. `git-dev.data/` is entirely gitignored except `config.yaml`/`project-prompt.md`, neither of which this workflow touches, so there is nothing of its own to commit.
@@ -65,7 +69,10 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-up
 ```
 
 ## Summary
-Report in a few lines: the issue, requirements, test results (before and after), branch, fix commit hash, and the two acknowledgements (coverage, MR). The branch is ready for the user to push.
+Report in a few lines: the issue, requirements, test results (before and after), branch, fix commit
+hash, and the two acknowledgements (coverage, MR). Remind the user: once this PR merges into
+`main`, merge `main` back into `dev` right away, as the next action, not something to catch later
+— `git-dev-run`'s drift check against `main` is only the fallback for when that step gets missed.
 
 ## Behavior
 - Don't guess: list missing or conflicting data as open questions.
