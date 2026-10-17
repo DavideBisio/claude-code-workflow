@@ -1,6 +1,33 @@
 {
-  "issues": [],
+  "issues": [
+    {
+      "id": "#13",
+      "iid": 13,
+      "title": "git-dev: merge main back into dev after any PR that merges to main",
+      "state": "opened",
+      "milestone_id": null,
+      "labels": [],
+      "assignee": null,
+      "requirements": [
+        "#8"
+      ],
+      "url": "https://github.com/DavideBisio/claude-code-workflow/issues/13"
+    }
+  ],
   "merge_requests": [
+    {
+      "id": "#12",
+      "iid": 12,
+      "title": "Add git-dev-new-issue, git-dev-new-req, git-dev-new-test skills",
+      "state": "opened",
+      "source_branch": "feat/git-dev-new-skills",
+      "target_branch": "main",
+      "pipeline": "unknown",
+      "closes": [
+        3
+      ],
+      "url": "https://github.com/DavideBisio/claude-code-workflow/pull/12"
+    },
     {
       "id": "#8",
       "iid": 8,
