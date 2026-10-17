@@ -9,7 +9,10 @@ disable-model-invocation: false
 ## Setup
 Read `git-dev.data/config.yaml` and `git-dev.data/project-prompt.md` in the project root and follow the project prompt throughout.
 
-Read `git-dev.data/work/target.json`. If it is missing, stop and tell the user to run `git-dev-target` first.
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get target
+```
+If this returns an `error`, stop and tell the user to run `git-dev-target` first.
 
 ## Operation
 Draft a plan; change nothing in the repository yet.
@@ -25,11 +28,14 @@ Draft a plan; change nothing in the repository yet.
 Show the plan and ask the user to approve it, edit it, or stop. Do not continue on a "no".
 
 ## Output
-Write the approved plan to `git-dev.data/work/plan.md` (scratch folder, gitignored).
+Write the approved plan as JSON (required keys: `branch`, `test`, `fix`, `verification`,
+`commit_message`, `tracker_updates`; put risks/open questions under an optional `risks` key):
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" record-step git-dev-plan
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write plan '<json above>'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-plan
 ```
+A rejected write prints which required keys are missing; fix the payload and write again.
 
 ## Summary
 Report in a few lines: branch name, test, intended fix, tracker updates planned, and that the next step is `git-dev-execute`.
