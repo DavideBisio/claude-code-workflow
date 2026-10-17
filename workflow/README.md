@@ -6,7 +6,9 @@ also available). Currently it bundles one workflow, `git-dev`.
 
 ## git-dev
 
-A four-step dev workflow (target an issue, plan a test-first fix, execute it, update the tracker):
+A four-step dev workflow (target an issue, plan a test-first fix, execute it, update the tracker),
+run through the `git-dev-run` orchestrator, plus three on-demand skills (`git-dev-new-issue`,
+`git-dev-new-req`, `git-dev-new-test`) for creating tracker records outside that flow:
 
 ```
 .claude-plugin/plugin.json        manifest
@@ -105,6 +107,6 @@ auto-invocation.
 ### Not done
 - Exercised via the e2e CLI harness, not yet loaded and driven interactively inside Claude Code itself.
 - Tool input schemas are loose (`additionalProperties: true`).
-- Status output of `git-dev-run` is a placeholder.
+- Status output of `git-dev-run` just replays step 1/2's summaries and each step's last run date; no aggregate reporting (e.g. coverage trends over time).
 - github-* providers don't auto-create the `req`/`test`/`dev` labels; `gh label create` them once per repo before use.
 - The e2e harness only exercises the mock providers; the github-* providers are only covered by unit tests of their no-`gh`-call surface (tool listing) plus manual checks against a real repo.

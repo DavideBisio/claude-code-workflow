@@ -34,8 +34,10 @@ as a GitHub reference).
 
 ## workflow
 
-A collection of workflows, each a set of gated skills (and, where useful, mock MCP servers). It
-currently bundles one: `git-dev`, a four-step dev workflow (target an issue, plan a test-first fix,
-execute it, update the tracker) backed by two mock MCP servers standing in for a version-control
-system and a requirements/coverage tracker. See [workflow/README.md](workflow/README.md) for the
-layout, the mock servers, and its end-to-end test harness.
+A collection of workflows, each a set of gated skills backed by pluggable MCP-shaped providers. It
+currently bundles one: `git-dev`, an orchestrator (`git-dev-run`) plus a four-step dev workflow
+(target an issue, plan a test-first fix, execute it, update the tracker), with on-demand skills for
+creating issues, requirements and tests outside that flow. Each of the two trackers it reads
+(version control, requirements/coverage) is produced by a provider — mock sample data by default, or
+a real `gh`-CLI-backed provider. See [workflow/README.md](workflow/README.md) for the layout, the
+providers, and its end-to-end test harness.
