@@ -23,7 +23,14 @@ run here is the same workflow this repo develops and ships (see `README.md` and
 - Known gaps (see workflow/README.md "Not done"): status output of `git-dev-run` is a placeholder;
   github-* providers are only unit-tested on their no-`gh`-call surface, not exercised by the e2e
   harness (which only covers the mock providers).
-- Version bumps: `workflow/.claude-plugin/plugin.json`'s `version` must be bumped inside the same PR
-  that merges to `main`, not as a separate follow-up commit afterward. (Previously a version bump
-  landed on `dev` after a PR had already merged to `main`, so `main` shipped stale version metadata
-  until the next unrelated PR happened to carry it along.)
+- PRs to `main`: feature branches are cut from `dev` and PR'd directly to `main`, not through
+  `git-dev-update`'s own default target (`dev`). Treat these two as a hard gate on that PR, not a
+  reminder to remember separately — checked once already and still missed (PR #8 shipped without a
+  bump despite the rule already existing):
+  1. Bump `workflow/.claude-plugin/plugin.json`'s `version` inside the same PR that merges to
+     `main`, not as a separate follow-up commit afterward.
+  2. Right after that PR merges into `main` — as the last step of that unit of work, not lazily
+     caught later — merge `main` back into `dev` so `dev` never falls behind (PR #8's provider fixes
+     landed on `main` only and were missed by the next `dev`-branched feature until caught
+     manually). `git-dev-run` step 1 also checks for this drift at the start of the next session as
+     a fallback, but that is not the primary mechanism — don't rely on it.
