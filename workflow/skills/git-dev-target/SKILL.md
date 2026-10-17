@@ -1,6 +1,6 @@
 ---
 name: git-dev-target
-description: Workflow step 1 of 4. Reads the existing tracker files, picks the first opened issue, gathers its requirements and identifies the target. Asks for confirmation, then summarizes.
+description: Workflow step 1 of 4. Reads the existing tracker files, picks the next opened candidate (checking blocking order, including standalone dev specs), gathers its requirements and identifies the target. Asks for confirmation, then summarizes.
 disable-model-invocation: false
 ---
 
@@ -9,26 +9,55 @@ disable-model-invocation: false
 ## Setup
 Read `git-dev.data/config.yaml` and `git-dev.data/project-prompt.md` in the project root and follow the project prompt throughout.
 
-Work only from the existing files; do not fetch (that is `git-dev-run`'s job). Source of truth is `git-dev.data/tracker/req-tracker.json`; issues come from `git-dev.data/tracker/version-control.json`. If either is missing, stop and tell the user to run `git-dev-run` first.
+Work only from the existing tracker files to pick *which* issue; do not fetch them yourself (that
+is `git-dev-run`'s job). If the relevant tracker file (see Operation step 1) is missing, stop and
+tell the user to run `git-dev-run` first.
 
-If `backends.req_tracker` is `github_labels` (check `config.yaml`): there is no separate `issues` vs `requirements` concept — the requirement issues themselves are the target. Pick the first opened requirement directly from `req-tracker.json` instead of step 1 below, and treat its own linked `coverage`/`specifications` entries as the lookup in step 1.
+If `backends.req_tracker` is `github_labels` (check `config.yaml`): there is no separate `issues`
+vs `requirements` concept — the `req`- and `dev`-labeled issues themselves are candidates (see
+Operation step 1). A `dev`-labeled issue (specification) with no linked `req`
+(`requirement_id: null`) is a normal, valid target on its own — not every feature needs req-level
+compliance, so don't treat the absence of a link as an anomaly requiring special confirmation.
 
 ## Operation
-1. Take the first issue with `state: opened` in `version-control.json`. Its `requirements` field lists requirement ids; look them up in `req-tracker.json`, together with their `coverage` records, `specifications` and any `testplans` that mention their test cases.
-2. Where the issue text and the requirements disagree, the requirements win; say so. If there is no opened issue, or it has no requirements, stop and report.
-3. Identify the target: issue (iid, title), requirements (id, title, status), current coverage result and test cases per requirement, and the code area likely affected (mock: a one-line guess).
+1. Build the candidate list of opened items:
+   - `backends.req_tracker` is `github_labels`: every opened entry in
+     `git-dev.data/tracker/req-tracker.json`'s `requirements` *and* `specifications` combined.
+   - otherwise: every opened issue in `git-dev.data/tracker/version-control.json`.
+2. Check ordering before picking. Each candidate (github backends only; mock sample data carries
+   no such field, so skip this check there) has `blocks`/`blocked_by` lists of issue refs parsed
+   from "Blocks #N"/"Blocked by #N" text in its body. If the candidate that would be picked next
+   (first opened) is `blocked_by` another still-open candidate, or another still-open candidate's
+   `blocks` names it, don't silently proceed with the naive pick — tell the user which issue looks
+   like it should go first and let them decide. This is a text heuristic over issue bodies, not an
+   authoritative dependency graph, so treat it as a hint to surface, not a hard rule to enforce.
+3. Take the resulting candidate (first opened, ordering conflicts surfaced per above) as the
+   target (its iid).
+4. Scope the detail for that one issue only, instead of reading the full req-tracker dump:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" fetch --issue <iid>
+```
+This calls the req-tracker/version-control providers with an exact-match `filter`, returning just
+that issue plus the requirements it references, their `coverage` records and `specifications` —
+not every requirement in the tracker.
+5. Where the issue text and the requirements disagree, the requirements win; say so. If there are
+   no opened candidates, stop and report. A candidate with no linked requirement is a valid target
+   on its own (see Setup) — don't stop or ask for special confirmation for that case alone.
+6. Identify the target: issue (iid, title), requirements (id, title, status) if any, current
+   coverage result and test cases per requirement, and the code area likely affected (mock: a
+   one-line guess).
 
 ## User gate
 Before writing anything, show the identified target and ask the user to confirm it or name a different issue. Do not continue on a "no".
 
 ## Output
-Write the confirmed target to `git-dev.data/work/target.json` (scratch folder, gitignored):
+Write the confirmed target (validated against its required fields):
 `{"issue": {...}, "requirements": [...], "coverage": [...], "code_area": "..."}`.
 
-Record the step, with no commit:
-
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" record-step git-dev-target
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write target '<json above>'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-target
 ```
 
 ## Summary
