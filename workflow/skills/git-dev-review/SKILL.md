@@ -18,8 +18,9 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get result
 If any returns an `error`, stop and tell the user to run the missing earlier step first.
 
 ## User gate
-If this run was invoked in auto mode with `git-dev-review` excluded from `auto.gates`, skip this
-confirmation — state what you're about to do and proceed directly. Otherwise: state that you're
+If `git-dev-run` invoked this step in auto mode and said it is **ungated** (see that skill's step 3
+for how `auto.gates` decides this), skip this confirmation — state what you're about to do and
+proceed directly. Otherwise: state that you're
 about to compute the diff and dispatch it to the read-only reviewer agent, and ask the user to
 confirm. Do not continue on a "no".
 

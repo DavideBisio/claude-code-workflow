@@ -3,8 +3,10 @@
 Read by every step before it starts. Describe project conventions, terminology and constraints here.
 
 The four sections below are read individually, at the exact point each is needed, via
-`handoff_manager.py prompt-section "<heading>"` — not just once at Setup. Leaving a section as-is
-(or deleting it) is fine: every reader falls back to the default noted under it.
+`handoff_manager.py prompt-section "<heading>"` — not just once at Setup. A section that is
+deleted, or still holds only its `<placeholder>` lines, is treated as unset: every reader falls
+back to the default noted under it. `Branching strategy` ships with real values, which are used
+as written until you change them.
 
 ## Branching strategy
 - source_branch: dev
@@ -18,7 +20,7 @@ The four sections below are read individually, at the exact point each is needed
   2. work on feat/fix/docs/chore branches cut from source_branch
   3. PR back to target_branch once work is done
   4. merge target_branch back into source_branch after the PR merges
-<!-- Default if unchanged or missing: source_branch=dev, target_branch=main, branch_pattern=fix/<iid>-<slug>. -->
+<!-- Default if this section is missing: source_branch=dev, target_branch=main, branch_pattern=fix/<iid>-<slug>. -->
 
 ## Issue labels
 - <list your tracker's labels and what each means, e.g. todo, dev, req, test>

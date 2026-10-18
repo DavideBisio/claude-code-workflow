@@ -1,9 +1,9 @@
 """Minimal nested `key: value` reader for `git-dev.data/config.yaml`.
 
 Not a YAML parser: supports only two-space-indented nesting of scalar `key: value` pairs and
-`key:` block headers, one pair per line, no lists/quotes/flow-style. That is all the `backends`
-and `github` sections need; anything else in config.yaml (prose, `test_command`, comments) is
-read directly by the skills, not by this module.
+`key:` block headers, one pair per line, no lists/quotes/flow-style. That is all the `backends`,
+`github`, `providers` and `auto` sections need. A `key:` header with nothing nested under it
+parses as an empty dict.
 """
 from pathlib import Path
 

@@ -249,6 +249,14 @@ class AutoMode(unittest.TestCase):
             out = json.loads(run(DATA, "config", "auto.enabled", "false", cwd=tmp).stdout)
             self.assertEqual(out, {"value": "false"})
 
+    def test_config_treats_empty_block_as_unset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "auto:\n  enabled: true\n  gates:\n", encoding="utf-8")
+            out = json.loads(run(DATA, "config", "auto.gates", "", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": ""})
+
     def test_config_returns_null_when_missing_and_no_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             run(DATA, "init", cwd=tmp)

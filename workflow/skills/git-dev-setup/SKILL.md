@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 ## When this runs
 Invoked by `git-dev-run` step 0 when `git_dev_data.py init` reports `created: true` (first-time
-setup), or when the user asks to reconfigure from `git-dev-run`'s step 3 menu. Not meant to be run
+setup), or when the user asks to reconfigure from `git-dev-run`'s step 4 menu. Not meant to be run
 standalone against a project with no `git-dev.data/` folder yet — `git-dev-run` creates it first.
 
 ## 1. Pick backends
@@ -46,9 +46,10 @@ can accept or edit, and write their answers back into `git-dev.data/project-prom
 If the user is reconfiguring rather than doing first-time setup, show the current content of each
 section before asking what to change, instead of starting from the blank placeholder.
 
-A section left as the shipped placeholder (or not customized at all) is not an error — every
-reader of these sections falls back to today's hardcoded convention (`dev`/`main`,
-`fix/<iid>-<slug>`, no extra test command, no extra checklist) when a section is empty.
+A section left as its shipped `<placeholder>` lines (or deleted) is not an error —
+`prompt-section` returns `null` for it, and every reader falls back to its default (`dev`/`main`,
+`fix/<iid>-<slug>`, ask for the test command, no extra checklist). `Branching strategy` ships with
+real values rather than placeholders, so accepting it as-is uses those values.
 
 ## Summary
 Report in a few lines: which backends were set, and which of the four `project-prompt.md` sections

@@ -68,8 +68,9 @@ not every requirement in the tracker.
    one-line guess).
 
 ## User gate
-If this run was invoked in auto mode with `git-dev-target` excluded from `auto.gates`, skip this
-confirmation — state the identified target and proceed directly. Otherwise: before writing
+If `git-dev-run` invoked this step in auto mode and said it is **ungated** (see that skill's step 3
+for how `auto.gates` decides this), skip this confirmation — state the identified target and
+proceed directly. Otherwise: before writing
 anything, show the identified target and ask the user to confirm it or name a different issue. Do
 not continue on a "no".
 

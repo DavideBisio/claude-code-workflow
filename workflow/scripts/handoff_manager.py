@@ -7,13 +7,15 @@ Replaces reading/writing raw tracker dumps and loose work/ files with one gitign
   handoff_manager.py get SECTION          print handoff.json[SECTION] ("scope"|"target"|"plan"|"result")
   handoff_manager.py write SECTION JSON   validate then store handoff.json[SECTION]
   handoff_manager.py prompt-section HEADING   print {heading, text} for a "## HEADING" block in
-                                               project-prompt.md (text is null if not customized)
+                                               project-prompt.md (text is null if missing or still
+                                               only the template's <placeholder> lines)
   handoff_manager.py provider KIND        print {name, command, tracker_file} for KIND (passthrough)
   handoff_manager.py record-step NAME     store today's date for step NAME in state.json (passthrough)
 
 Prints JSON. Stdlib only.
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +42,10 @@ TYPES = {
              "tracker_updates": (list, dict)},
     "result": {"branch": str, "commit": str, "test_id": str, "test_before": str, "test_after": str},
 }
+
+# project-prompt.md template markup: `<!-- default note -->` comments, and `- <fill me in>` lines.
+COMMENT = re.compile(r"<!--.*?-->", re.S)
+PLACEHOLDER = re.compile(r"(?:[-*]\s*)?<[^>]*>")
 
 
 def _call(command, tool, args=None):
@@ -99,8 +105,9 @@ def write(section, data):
 
 def prompt_section(heading):
     """{"heading", "text"} for the "## <heading>" block in project-prompt.md (case-insensitive
-    heading match), text up to the next "## " heading or EOF; text=None if not found/customized
-    yet, so callers fall back to their own documented default."""
+    heading match), text up to the next "## " heading or EOF, `<!-- -->` comments stripped.
+    text=None if not found, empty, or only `<placeholder>` lines (the shipped template), so callers
+    fall back to their own documented default."""
     path = DATA / "project-prompt.md"
     if not path.exists():
         return {"heading": heading, "text": None}
@@ -113,8 +120,9 @@ def prompt_section(heading):
     end = start
     while end < len(lines) and not lines[end].startswith("## "):
         end += 1
-    body = "\n".join(lines[start:end]).strip()
-    return {"heading": heading, "text": body or None}
+    body = COMMENT.sub("", "\n".join(lines[start:end])).strip()
+    customized = any(l.strip() and not PLACEHOLDER.fullmatch(l.strip()) for l in body.splitlines())
+    return {"heading": heading, "text": body if customized else None}
 
 
 def main(argv):

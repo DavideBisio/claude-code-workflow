@@ -23,7 +23,7 @@ mcp/common/miniconfig.py          minimal nested key:value reader for config.yam
 agents/executor.md                dispatched by git-dev-execute: branch, failing test, fix, passing test, commit
 agents/reviewer.md                dispatched by git-dev-review: read-only diff-vs-plan review
 agents/explorer.md                dispatched by git-dev-plan: read-only codebase exploration for a real fix
-skills/git-dev-run/               orchestrator: rebase dev, fetch tracker data, ask what to do (or chain, in auto mode)
+skills/git-dev-run/               orchestrator: rebase the source branch, fetch tracker data, ask what to do (or chain, in auto mode)
 skills/git-dev-setup/             first-run (or on-demand reconfigure): pick backends, fill project-prompt.md
 skills/git-dev-target/            step 1: pick the issue and requirements from the existing files
 skills/git-dev-plan/              step 2: plan test-first fix, commit, tracker updates
@@ -43,12 +43,13 @@ tests/e2e/fixtures/               fixture templates (plain file trees) for build
 tests/e2e/run_e2e.py              e2e: runs a TestPlan's skills through the claude CLI (spends tokens)
 ```
 
-### Agents (opt-in)
+### Agents
 Three steps can dispatch part of their work to a read-scoped or execute-scoped subagent instead of
 doing it inline in the main session: `git-dev-execute` → `workflow:executor` (branch/test/fix/
 commit loop), `git-dev-plan` → `workflow:explorer` (read-only codebase lookup for the fix), and the
 optional `git-dev-review` → `workflow:reviewer` (read-only diff review). This is not configurable
-off — `git-dev-execute`/`git-dev-plan` always dispatch — but it is scoped narrowly: `git-dev-target`,
+off — `git-dev-execute` always dispatches, and `git-dev-plan` does for any non-mock target;
+`git-dev-review` itself is the optional step — but it is scoped narrowly: `git-dev-target`,
 `git-dev-update`, and `git-dev-run` itself never do, since they either just read JSON or perform
 real, hard-to-reverse side effects (a real push, a real PR/issue) that must stay in the main
 session behind its own gate.
@@ -64,12 +65,14 @@ of this plugin's skills already rely on, not a technically enforced one.
 
 ### Opt-in auto mode
 `auto.enabled: true` in `config.yaml` makes `git-dev-run` chain `target → plan → execute → (review)
-→ update` itself instead of asking after every step. `auto.gates` (comma-separated step names)
-lists which steps still pause for their own confirmation; empty/unset means every step still
-pauses, so turning auto mode on with no `gates` set changes only who decides to start the next
-step, not whether that step still asks. `git-dev-update`'s gate is never skippable, in or out of
-`auto.gates` — it's the one step with real side effects. Default is unset/`false`: unchanged from
-today.
+→ update` itself, once per session, instead of asking after every step; it then returns to its
+usual menu. `auto.review: true` includes `git-dev-review` in the chain. `auto.gates`
+(comma-separated short step names: `target`, `plan`, `execute`, `review`, `update`) lists which
+steps still pause for their own confirmation. Empty/unset means every step still pauses, so
+turning auto mode on with no `gates` set changes only who decides to start the next step, not
+whether that step still asks; only a non-empty list lets the steps it leaves out skip their
+confirmation. `git-dev-update`'s gate is never skippable, in or out of `auto.gates` — it's the one
+step with real side effects. Default is unset/`false`: unchanged from today.
 
 ### Running multiple issues in parallel
 Nothing here assumes a single global workspace: `git-dev.data/` lives in the project root, so
@@ -170,5 +173,4 @@ auto-invocation.
 - Status output of `git-dev-run` just replays step 1/2's summaries and each step's last run date; no aggregate reporting (e.g. coverage trends over time).
 - github-* providers don't auto-create the `req`/`test`/`dev` labels; `gh label create` them once per repo before use.
 - `blocks`/`blocked_by` is a plain "Blocks #N"/"Blocked by #N" text match over the issue body, not GitHub's native sub-issue/blocked-by relationship; `git-dev-target` treats it as a hint to surface, not an authoritative dependency graph.
-- `tests/e2e/testplan.py`'s goal checks still assert the pre-`handoff_manager.py` file shape (`work/target.json`, `work/plan.md`, `work/result.json`, a `git-dev.data` commit per step) and will fail as written; updating them is deferred to a follow-up issue by design (see issue #19's acceptance criteria).
 - The e2e harness only exercises the mock providers; the github-* providers are only covered by unit tests of their no-`gh`-call surface (tool listing) plus manual checks against a real repo.

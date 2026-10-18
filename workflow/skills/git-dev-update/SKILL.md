@@ -1,6 +1,6 @@
 ---
 name: git-dev-update
-description: Workflow step 4 of 4. Updates requirement-tracker coverage for the passing test, opens the merge request and commits git-dev.data (mock). Asks for confirmation first, then summarizes.
+description: Workflow step 4 of 4. Updates requirement-tracker coverage for the passing test, pushes the branch (github-* only) and opens the merge request. Asks for confirmation first, then summarizes.
 disable-model-invocation: false
 ---
 
@@ -27,8 +27,8 @@ commit that bumps a version file) before opening the merge request, rather than 
 and fixing it after.
 
 ## User gate
-This gate is never skipped, even in auto mode and even if `git-dev-update` is left out of
-`auto.gates` — its actions (tracker writes, a real push, a real PR) are exactly the kind of
+This gate is never skipped, even in auto mode and even if `git-dev-run` calls this step
+**ungated** or `update` is left out of `auto.gates` — its actions (tracker writes, a real push, a real PR) are exactly the kind of
 hard-to-reverse, real-world side effects a human must confirm regardless of how the rest of the
 run is configured.
 

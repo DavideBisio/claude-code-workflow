@@ -94,7 +94,7 @@ def check_provider(kind):
 
 def set_backend(kind, value):
     """Persist `backends.<kind>: value` into config.yaml, editing only that block in place (or
-    appending a new one) so any other content (comments, `test_command`, prose) is left alone."""
+    appending a new one) so any other content (comments, other blocks such as `auto:`) is left alone."""
     if kind not in BUILTIN:
         sys.exit(f"unknown kind: {kind!r}; choose from {list(BUILTIN)}")
     _, choices = BUILTIN[kind]
@@ -125,9 +125,11 @@ def set_backend(kind, value):
 
 
 def config_value(dotted, default=None):
-    """Any dotted key in config.yaml (not just backends.*/providers.*), e.g. `auto.enabled`."""
+    """Any dotted key in config.yaml (not just backends.*/providers.*), e.g. `auto.enabled`.
+    A bare `key:` with nothing under it parses as an empty block; treat it as unset."""
     config = load_config(DATA / "config.yaml")
-    return config_get(config, dotted, default)
+    value = config_get(config, dotted, default)
+    return default if value == {} else value
 
 
 def init():

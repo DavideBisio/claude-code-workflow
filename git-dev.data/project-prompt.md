@@ -51,7 +51,8 @@ run here is the same workflow this repo develops and ships (see `README.md` and
 ## Test commands
 - Unit: `python -m unittest discover tests` (run from `workflow/`).
 - e2e: `python tests/e2e/run_e2e.py` (run from `workflow/`; spends tokens — use `--dry-run` to avoid
-  spending tokens when just checking wiring).
+  spending tokens when just checking wiring). **Not** part of `git-dev-execute`'s test-first/
+  test-after loop: that loop uses the unit command only. Run e2e manually, and only when asked.
 
 ## Pre-PR checklist
 - Version bump: treat this as a hard gate on *any* PR that adds a capability or changes behavior

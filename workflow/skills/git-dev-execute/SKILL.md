@@ -26,8 +26,9 @@ If `text` is not `null`, use the command(s) it names for steps 2 and 4 below. If
 the user for the test command rather than guessing.
 
 ## User gate
-If this run was invoked in auto mode with `git-dev-execute` excluded from `auto.gates`, skip this
-confirmation — state what you're about to do and proceed directly. Otherwise: before changing
+If `git-dev-run` invoked this step in auto mode and said it is **ungated** (see that skill's step 3
+for how `auto.gates` decides this), skip this confirmation — state what you're about to do and
+proceed directly. Otherwise: before changing
 anything, state what will happen (dispatch to the executor agent: create the branch, write the
 test, change code, commit) and ask the user to confirm. Do not continue on a "no".
 

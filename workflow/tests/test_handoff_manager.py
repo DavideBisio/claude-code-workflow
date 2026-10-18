@@ -84,6 +84,32 @@ class PromptSection(unittest.TestCase):
             out = json.loads(run(HANDOFF, "prompt-section", "Nonexistent Section", cwd=tmp).stdout)
             self.assertIsNone(out["text"])
 
+    def test_shipped_placeholder_sections_return_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            for heading in ("Issue labels", "Test commands", "Pre-PR checklist"):
+                out = json.loads(run(HANDOFF, "prompt-section", heading, cwd=tmp).stdout)
+                self.assertIsNone(out["text"], heading)
+
+    def test_shipped_branching_values_are_used_without_comment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(HANDOFF, "prompt-section", "Branching strategy", cwd=tmp).stdout)
+            self.assertIn("source_branch: dev", out["text"])
+            self.assertNotIn("<!--", out["text"])
+
+    def test_customized_line_next_to_placeholder_is_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "project-prompt.md").write_text(
+                "## Test commands\n"
+                "- python -m unittest\n"
+                "- <e2e / integration test command, if any>\n"
+                "<!-- Default if unchanged or missing: none assumed. -->\n", encoding="utf-8")
+            out = json.loads(run(HANDOFF, "prompt-section", "Test commands", cwd=tmp).stdout)
+            self.assertIn("python -m unittest", out["text"])
+            self.assertNotIn("Default if", out["text"])
+
 
 class WriteTypeValidation(unittest.TestCase):
     def test_write_rejects_wrong_type_for_known_key(self):

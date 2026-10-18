@@ -1,6 +1,6 @@
 ---
 name: git-dev-run
-description: Orchestrator for the git-dev workflow. Rebases dev, fetches version-control and requirement-tracker data, then asks what to do (run a step, show status). Run manually.
+description: Orchestrator for the git-dev workflow. Rebases the configured source branch, fetches version-control and requirement-tracker data, then asks what to do (run a step, reconfigure, show status), or chains the steps itself in opt-in auto mode. Run manually.
 disable-model-invocation: true
 ---
 
@@ -89,25 +89,32 @@ requests, milestones, failed or uncovered requirements. If a `github`-backed pro
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.enabled false
 ```
-Default is unset/`false` — behavior is unchanged, go straight to step 4. If it's `true`, this
-session chains the workflow automatically instead of asking what to do each time: say once that
-auto mode is on, then fetch the gate list and start the chain from the first step whose
-predecessor has a newer completion date in `state.json` (same selection rule as step 4's manual
-choice):
+Default is unset/`false` — behavior is unchanged, go straight to step 4. Auto mode chains at most
+once per `git-dev-run` session: if a chain already ran in this session, skip this step and go to
+step 4.
+
+If it's `true`, this session chains the workflow automatically instead of asking what to do: say
+once that auto mode is on, then fetch the gate list and the review toggle:
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.gates ""
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.review false
 ```
-Split the result on commas (empty string = no gates named = every step still pauses for its own
-confirmation, i.e. auto mode only changes who decides to run the *next* step, not whether each one
-still asks). For each step in order (`git-dev-target`, `git-dev-plan`, `git-dev-execute`,
-`git-dev-review` if you want review in the chain, `git-dev-update`), invoke the skill
-`workflow:<step>` noting that this run is in auto mode and naming whether that step is in the gate
-list (so its own "User gate" section knows whether to skip its confirmation — `git-dev-update`'s
-never skips regardless, per its own skill). Stop the chain if any step reports a failure, a stop
-condition (e.g. no opened candidates), or asks a question only a human can answer (e.g. a
-`blocked_by` ordering conflict in `git-dev-target`) — auto mode chains the happy path, not past a
-step that's genuinely stuck. After the chain ends (success, stop, or `git-dev-update` completes),
-go back to step 1.
+Split `auto.gates` on commas into short step names (`target`, `plan`, `execute`, `review`,
+`update`; a `git-dev-` prefixed name means the same step). Then decide each step's gate:
+- **`auto.gates` empty**: every step is **gated** — it still pauses for its own confirmation; auto
+  mode only changes who decides to *start* the next step.
+- **`auto.gates` non-empty**: a step it names is **gated**; a step it leaves out is **ungated**.
+- `git-dev-update` is always gated, whatever the list says (see its own skill).
+
+The chain is `git-dev-target`, `git-dev-plan`, `git-dev-execute`, then `git-dev-review` only if
+`auto.review` is `true`, then `git-dev-update`. Start from the first step whose predecessor has a
+newer completion date in `state.json` (same selection rule as step 4's manual choice). For each
+step, invoke the skill `workflow:<step>`, telling it that this run is in auto mode and whether it
+is **gated** or **ungated** (its own "User gate" section acts on exactly that). Stop the chain if
+any step reports a failure, a stop condition (e.g. no opened candidates), or asks a question only
+a human can answer (e.g. a `blocked_by` ordering conflict in `git-dev-target`) — auto mode chains
+the happy path, not past a step that's genuinely stuck. When the chain ends (success or stop), say
+how it ended and go to step 4.
 
 ## 4. Ask the user what to do
 One question, with these options:

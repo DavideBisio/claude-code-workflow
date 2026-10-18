@@ -42,8 +42,8 @@ Draft a plan; change nothing in the repository yet.
 8. Risks and open questions.
 
 ## User gate
-If this run was invoked in auto mode with `git-dev-plan` excluded from `auto.gates`, skip this
-confirmation — state the plan and proceed directly. Otherwise: show the plan and ask the user to
+If `git-dev-run` invoked this step in auto mode and said it is **ungated** (see that skill's step 3
+for how `auto.gates` decides this), skip this confirmation — state the plan and proceed directly. Otherwise: show the plan and ask the user to
 approve it, edit it, or stop. Do not continue on a "no".
 
 ## Output
