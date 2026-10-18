@@ -15,7 +15,15 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get plan
 ```
 If either returns an `error`, stop and tell the user to run `git-dev-target` and `git-dev-plan` first.
 
-Check git: the current branch must be `dev`, and the working tree must be clean. Otherwise stop and report; never stash or discard.
+Check git: the current branch must be `plan.source_branch` (default `dev` if the plan predates this
+field), and the working tree must be clean. Otherwise stop and report; never stash or discard.
+
+Resolve the test command once, before running anything:
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" prompt-section "Test commands"
+```
+If `text` is not `null`, use the command(s) it names for steps 2 and 4 below. If it is `null`, ask
+the user for the test command rather than guessing.
 
 ## User gate
 Before changing anything, state what will happen (create the branch, write the test, change code, commit) and ask the user to confirm. Do not continue on a "no".

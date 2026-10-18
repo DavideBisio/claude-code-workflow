@@ -28,43 +28,52 @@ gitignored data:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" init
 ```
 
-If it reports `created: true`, this is first-time setup — pick a backend for each tracker before anything else runs:
-1. Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" providers` to get the valid choices per tracker kind (`version_control`, `req_tracker`). Never hardcode backend names in this step; always ask the script.
-2. Ask the user which choice to use for `version_control` and which for `req_tracker`. If no human is present to ask (e.g. a pre-approved/automated run), default both to `mock` and say so.
-3. Save each answer: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" set-backend <kind> <value>`.
-4. Tell the user to fill in `project-prompt.md`, and — if they picked anything other than the defaults — to review the matching section in `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run. Advanced users wiring in a third-party tracker instead of `mock`/`github*` can add a `providers:` block to `config.yaml` (see the commented example there) and point `backends.<kind>` at its name; `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" check-provider <kind>` smoke-tests it before relying on it.
+If it reports `created: true`, this is first-time setup: invoke the skill `workflow:git-dev-setup`
+and follow it before anything else runs (it picks the trackers' backends and walks the user through
+`project-prompt.md`'s placeholder sections). Do not inline those steps here.
 
 ## 1. Fetch git state and rebase
+Resolve the branching strategy once, before touching git, so the rest of this step uses the
+project's actual convention instead of a hardcoded one:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" prompt-section "Branching strategy"
+```
+Read `source_branch` and `target_branch` out of the returned text (e.g. a `source_branch: dev`
+line); if `text` is `null` or either value isn't stated, default to `source_branch: dev`,
+`target_branch: main` — today's convention. Use `<source_branch>`/`<target_branch>` for every git
+command below in place of the literal `dev`/`main`.
+
 Git comes first so the tree is clean before `git-dev.data/` is rewritten.
 
 ```bash
 git branch --show-current
 git status --short
 ```
-- The expected branch is `dev`. If on another branch, say so and ask whether to continue; never switch branches without being asked.
+- The expected branch is `<source_branch>`. If on another branch, say so and ask whether to continue; never switch branches without being asked.
 - If the working tree is not clean, stop and ask; do not stash or discard anything.
-- Otherwise bring `dev` up to the latest remote commit:
+- Otherwise bring `<source_branch>` up to the latest remote commit:
 
 ```bash
-git fetch origin dev
-git log --oneline HEAD..origin/dev
-git rebase origin/dev
+git fetch origin <source_branch>
+git log --oneline HEAD..origin/<source_branch>
+git rebase origin/<source_branch>
 ```
 
 - Report the new commits (the `log` output above). If the rebase conflicts, stop, list the conflicting files and ask; use `git rebase --abort` only if the user says so.
 - Do not run `git reset` or push.
 
-### Check for drift against `main` (fallback only)
-`git-dev-update` targets `main` for its merge request by default (see that skill) — `dev` is only
-the branch-cut source, kept in sync *from* `main` right after each such PR merges, as the next
-action at the time, not something to catch later (see `project-prompt.md` if it documents a
-project-specific variant). This check is only the fallback for when that sync got missed:
+### Check for drift against `<target_branch>` (fallback only)
+`git-dev-update` targets `<target_branch>` for its merge request by default (see that skill) —
+`<source_branch>` is only the branch-cut source, kept in sync *from* `<target_branch>` right after
+each such PR merges, as the next action at the time, not something to catch later. This check is
+only the fallback for when that sync got missed:
 
 ```bash
-git fetch origin main
-git log --oneline dev..origin/main
+git fetch origin <target_branch>
+git log --oneline <source_branch>..origin/<target_branch>
 ```
-If `origin/main` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `dev` has drifted behind `main`: tell the user plainly what's missing, then merge `origin/main` into `dev` to close the gap (confirm before pushing). Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
+If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing, then merge `origin/<target_branch>` into `<source_branch>` to close the gap (confirm before pushing). Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
 
 ## 2. Fetch tracker updates
 ```bash
@@ -79,10 +88,12 @@ requests, milestones, failed or uncovered requirements. If a `github`-backed pro
 ## 3. Ask the user what to do
 One question, with these options:
 - **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
+- **Reconfigure**: re-run setup (backend choice and/or the `project-prompt.md` sections) without treating it as first-time setup.
 - **Return status**: show the workflow status.
 
 ## 4. Act on the choice
 - **Run a step**: invoke the skill `workflow:<step>` and follow it.
+- **Reconfigure**: invoke the skill `workflow:git-dev-setup` and follow it.
 - **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion date from `git-dev.data/state.json` (`never` if absent).
 
 After acting, go back to step 1 and ask again. Stop when the user says so.

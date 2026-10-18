@@ -6,6 +6,8 @@ Replaces reading/writing raw tracker dumps and loose work/ files with one gitign
   handoff_manager.py fetch --issue N      scope requirements/coverage/specifications to issue N
   handoff_manager.py get SECTION          print handoff.json[SECTION] ("scope"|"target"|"plan"|"result")
   handoff_manager.py write SECTION JSON   validate then store handoff.json[SECTION]
+  handoff_manager.py prompt-section HEADING   print {heading, text} for a "## HEADING" block in
+                                               project-prompt.md (text is null if not customized)
   handoff_manager.py provider KIND        print {name, command, tracker_file} for KIND (passthrough)
   handoff_manager.py record-step NAME     store today's date for step NAME in state.json (passthrough)
 
@@ -27,6 +29,16 @@ REQUIRED = {
     "target": ["issue", "requirements", "coverage", "code_area"],
     "plan": ["branch", "test", "fix", "verification", "commit_message", "tracker_updates"],
     "result": ["branch", "commit", "test_id", "test_before", "test_after"],
+}
+
+# section -> {key: type(s)}, checked only for keys present in the payload (required or optional).
+# Kept narrow: just the keys later steps interpolate directly (e.g. into `git switch -c <branch>`
+# or a commit message), where a wrong type would otherwise fail confusingly downstream.
+TYPES = {
+    "target": {"requirements": list, "coverage": list},
+    "plan": {"branch": str, "source_branch": str, "target_branch": str, "commit_message": str,
+             "tracker_updates": (list, dict)},
+    "result": {"branch": str, "commit": str, "test_id": str, "test_before": str, "test_after": str},
 }
 
 
@@ -76,10 +88,33 @@ def write(section, data):
     missing = [k for k in REQUIRED[section] if k not in data]
     if missing:
         return {"ok": False, "error": f"missing required keys for '{section}': {missing}"}
+    mismatched = [k for k, t in TYPES.get(section, {}).items() if k in data and not isinstance(data[k], t)]
+    if mismatched:
+        return {"ok": False, "error": f"wrong type for key(s) in '{section}': {mismatched}"}
     handoff = _load()
     handoff[section] = data
     _save(handoff)
     return {"ok": True, "section": section}
+
+
+def prompt_section(heading):
+    """{"heading", "text"} for the "## <heading>" block in project-prompt.md (case-insensitive
+    heading match), text up to the next "## " heading or EOF; text=None if not found/customized
+    yet, so callers fall back to their own documented default."""
+    path = DATA / "project-prompt.md"
+    if not path.exists():
+        return {"heading": heading, "text": None}
+    lines = path.read_text(encoding="utf-8").splitlines()
+    wanted = heading.strip().lower()
+    start = next((i + 1 for i, l in enumerate(lines)
+                  if l.startswith("## ") and l[3:].strip().lower() == wanted), None)
+    if start is None:
+        return {"heading": heading, "text": None}
+    end = start
+    while end < len(lines) and not lines[end].startswith("## "):
+        end += 1
+    body = "\n".join(lines[start:end]).strip()
+    return {"heading": heading, "text": body or None}
 
 
 def main(argv):
@@ -96,6 +131,8 @@ def main(argv):
         res = write(argv[1], data)
         print(json.dumps(res, indent=2))
         sys.exit(0 if res.get("ok") else 1)
+    elif cmd == "prompt-section" and len(argv) == 2:
+        res = prompt_section(argv[1])
     elif cmd == "provider" and len(argv) == 2:
         res = git_dev_data.provider(argv[1])
     elif cmd == "record-step" and len(argv) == 2:

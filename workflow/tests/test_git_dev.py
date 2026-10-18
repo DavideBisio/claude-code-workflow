@@ -178,6 +178,15 @@ class DataScript(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
 
 
+class SkillStructure(unittest.TestCase):
+    def test_setup_skill_extracted_from_run(self):
+        setup_skill = ROOT / "skills" / "git-dev-setup" / "SKILL.md"
+        run_skill = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertTrue(setup_skill.exists())
+        self.assertNotIn("pick a backend for each tracker before anything else runs", run_skill)
+        self.assertIn("git-dev-setup", run_skill)
+
+
 class MiniConfig(unittest.TestCase):
     def test_nested_keys_and_comments(self):
         with tempfile.TemporaryDirectory() as tmp:

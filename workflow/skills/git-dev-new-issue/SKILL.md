@@ -18,7 +18,14 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control
 This prints `{name, command, tracker_file}`. Run the printed `command` array verbatim, followed by `TOOL '<json>'`, in place of `<version-control-provider-command>` below.
 
 ## Operation
-1. Ask the user for: `title` (required), `body` (optional), `labels` (optional — do not use the tracker labels from `config.yaml`'s `github.labels`/defaults `req`/`test`/`dev`; those are managed by `git-dev-new-req` and `git-dev-new-test`), `assignee` (optional).
+1. Before asking for labels, fetch the project's documented label set:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" prompt-section "Issue labels"
+   ```
+   If `text` is not `null`, offer those as the valid choices. Either way, ask the user for: `title`
+   (required), `body` (optional), `labels` (optional — do not use the tracker labels from
+   `config.yaml`'s `github.labels`/defaults `req`/`test`/`dev`; those are managed by
+   `git-dev-new-req` and `git-dev-new-test`), `assignee` (optional).
 2. Show exactly what will be created.
 
 ## User gate
