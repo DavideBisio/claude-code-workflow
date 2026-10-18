@@ -27,15 +27,24 @@ Draft a plan; change nothing in the repository yet.
    `target_branch: main`, pattern `fix/<iid>-<slug>` — today's convention. Pick the prefix that
    matches this change (`feat`/`fix`/`docs`/`chore`, or whatever the text names) and produce the
    branch name, created from `source_branch`.
-2. **Test first (mock)**: what the test checks (the requirements' acceptance criteria), where it goes, its test id (mock, e.g. `TC-<next>`). It must fail before the fix.
-3. **Fix (mock)**: the intended change, kept small.
-4. **Verification**: the test must pass after the fix (at most 3 tries).
-5. **Commit**: one commit with fix and test, message referencing `Refs #<iid>` and the requirement ids. No push.
-6. **Tracker updates** (for `git-dev-update`): per requirement, `update_coverage` if a coverage record exists, otherwise `create_coverage`, with the test ids; plus the merge request title and `target_branch` from step 1 (the branch itself is cut from `source_branch`; the PR targets `target_branch` directly — see `git-dev-update`).
-7. Risks and open questions.
+2. **Explore** (on a real, non-mock repo): the target's `code_area` is often just a one-line
+   guess. Dispatch to the `workflow:explorer` agent (via the Agent tool, `subagent_type:
+   "workflow:explorer"`), passing it the target (issue + requirements + `code_area` guess). It
+   returns the actual file(s) involved, a proposed change per file, and where the test should go.
+   Use that instead of guessing yourself. Skip this for a mock-backend target with no real
+   codebase behind it (nothing for the agent to find).
+3. **Test first**: what the test checks (the requirements' acceptance criteria), where it goes
+   (per step 2's finding), its test id (e.g. `TC-<next>`). It must fail before the fix.
+4. **Fix**: the intended change, kept small, per step 2's finding.
+5. **Verification**: the test must pass after the fix (at most 3 tries).
+6. **Commit**: one commit with fix and test, message referencing `Refs #<iid>` and the requirement ids. No push.
+7. **Tracker updates** (for `git-dev-update`): per requirement, `update_coverage` if a coverage record exists, otherwise `create_coverage`, with the test ids; plus the merge request title and `target_branch` from step 1 (the branch itself is cut from `source_branch`; the PR targets `target_branch` directly — see `git-dev-update`).
+8. Risks and open questions.
 
 ## User gate
-Show the plan and ask the user to approve it, edit it, or stop. Do not continue on a "no".
+If this run was invoked in auto mode with `git-dev-plan` excluded from `auto.gates`, skip this
+confirmation — state the plan and proceed directly. Otherwise: show the plan and ask the user to
+approve it, edit it, or stop. Do not continue on a "no".
 
 ## Output
 Write the approved plan as JSON (required keys: `branch`, `test`, `fix`, `verification`,

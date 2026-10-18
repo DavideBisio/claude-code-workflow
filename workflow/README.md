@@ -20,16 +20,21 @@ mcp/github-version-control/       real GitHub issues/PRs/milestones (`gh` CLI)
 mcp/common/mockmcp.py             stdlib-only MCP stdio server + CLI harness, shared by all providers
 mcp/common/ghcli.py               thin `gh` subprocess wrapper used by the github-* providers
 mcp/common/miniconfig.py          minimal nested key:value reader for config.yaml's `backends`/`github` keys
-skills/git-dev-run/               orchestrator: rebase dev, fetch tracker data, ask what to do
+agents/executor.md                dispatched by git-dev-execute: branch, failing test, fix, passing test, commit
+agents/reviewer.md                dispatched by git-dev-review: read-only diff-vs-plan review
+agents/explorer.md                dispatched by git-dev-plan: read-only codebase exploration for a real fix
+skills/git-dev-run/               orchestrator: rebase dev, fetch tracker data, ask what to do (or chain, in auto mode)
+skills/git-dev-setup/             first-run (or on-demand reconfigure): pick backends, fill project-prompt.md
 skills/git-dev-target/            step 1: pick the issue and requirements from the existing files
 skills/git-dev-plan/              step 2: plan test-first fix, commit, tracker updates
-skills/git-dev-execute/           step 3: branch, failing test, fix, passing test, commit
+skills/git-dev-execute/           step 3: dispatches to the executor agent; writes its result
+skills/git-dev-review/            optional step: dispatches the diff to the reviewer agent
 skills/git-dev-update/            step 4: coverage update, MR, commit git-dev.data
 skills/git-dev-new-issue/         on-demand: create a version-control issue via the configured provider
 skills/git-dev-new-req/           on-demand: create a requirement via the configured req_tracker provider
 skills/git-dev-new-test/          on-demand: create a coverage/testcase record for a requirement
-scripts/git_dev_data.py           init / fetch / record-step / provider for git-dev.data/
-scripts/handoff_manager.py        scoped, schema-validated step handoff (target/plan/result)
+scripts/git_dev_data.py           init / fetch / record-step / provider / config for git-dev.data/
+scripts/handoff_manager.py        scoped, schema-validated step handoff (target/plan/result) + prompt-section
 assets/git-dev.data/              template copied into the target project
 tests/                            python -m unittest discover tests
 tests/e2e/harness.py              generic e2e engine: build fixture, invoke `claude -p`, verify, report
@@ -37,6 +42,42 @@ tests/e2e/testplan.py             this plugin's TestPlan (skills, fixture templa
 tests/e2e/fixtures/               fixture templates (plain file trees) for build_git_fixture
 tests/e2e/run_e2e.py              e2e: runs a TestPlan's skills through the claude CLI (spends tokens)
 ```
+
+### Agents (opt-in)
+Three steps can dispatch part of their work to a read-scoped or execute-scoped subagent instead of
+doing it inline in the main session: `git-dev-execute` → `workflow:executor` (branch/test/fix/
+commit loop), `git-dev-plan` → `workflow:explorer` (read-only codebase lookup for the fix), and the
+optional `git-dev-review` → `workflow:reviewer` (read-only diff review). This is not configurable
+off — `git-dev-execute`/`git-dev-plan` always dispatch — but it is scoped narrowly: `git-dev-target`,
+`git-dev-update`, and `git-dev-run` itself never do, since they either just read JSON or perform
+real, hard-to-reverse side effects (a real push, a real PR/issue) that must stay in the main
+session behind its own gate.
+
+No agent here can push or create a real issue/PR — not because any tool is blocked from doing so
+(a frontmatter `tools:`/`disallowedTools:` allowlist can't express "Bash minus `git push`", only
+"no Bash at all"), but because of where the boundary actually sits: `git push`, `create_merge_request`
+and `create_issue` only ever run inside `git-dev-update`/`git-dev-new-issue`, and neither of those
+ever runs as a subagent under this design. `reviewer` and `explorer` are read-only by tool grant
+(`Read, Grep, Glob`, no `Bash`/`Write`/`Edit`); `executor` does have `Bash`/`Write`/`Edit` (it needs
+them to run tests and commit), so its "never pushes" is the same prose-level commitment the rest
+of this plugin's skills already rely on, not a technically enforced one.
+
+### Opt-in auto mode
+`auto.enabled: true` in `config.yaml` makes `git-dev-run` chain `target → plan → execute → (review)
+→ update` itself instead of asking after every step. `auto.gates` (comma-separated step names)
+lists which steps still pause for their own confirmation; empty/unset means every step still
+pauses, so turning auto mode on with no `gates` set changes only who decides to start the next
+step, not whether that step still asks. `git-dev-update`'s gate is never skippable, in or out of
+`auto.gates` — it's the one step with real side effects. Default is unset/`false`: unchanged from
+today.
+
+### Running multiple issues in parallel
+Nothing here assumes a single global workspace: `git-dev.data/` lives in the project root, so
+`git worktree add ../other-issue -b fix/26-x dev` plus its own `git_dev_data.py init` in that
+worktree already gives you an independent `git-dev-run` session today, with no new code needed.
+What isn't solved: two parallel runs racing on the *same* requirement's coverage record, or
+creating overlapping issues — there's no cross-run lock. Worth building if that conflict actually
+bites; not built speculatively ahead of a real case.
 
 ### Providers (backends)
 Each tracker (`version_control`, `req_tracker`) is produced by a provider, selected per-project via

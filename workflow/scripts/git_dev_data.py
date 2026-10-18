@@ -7,6 +7,7 @@
   git_dev_data.py providers           print the valid backend choices for every KIND (built-in + custom)
   git_dev_data.py set-backend KIND VALUE   persist a backend choice in config.yaml's `backends:` block
   git_dev_data.py check-provider KIND      smoke-test the active KIND provider's `tools` output
+  git_dev_data.py config DOTTED [DEFAULT]  print {value} for a dotted config.yaml key (e.g. auto.enabled)
 
 Prints JSON. Stdlib only.
 """
@@ -123,6 +124,12 @@ def set_backend(kind, value):
     return {"backends": {kind: value}}
 
 
+def config_value(dotted, default=None):
+    """Any dotted key in config.yaml (not just backends.*/providers.*), e.g. `auto.enabled`."""
+    config = load_config(DATA / "config.yaml")
+    return config_get(config, dotted, default)
+
+
 def init():
     if DATA.exists():
         return {"created": False, "path": str(DATA)}
@@ -168,6 +175,8 @@ def main(argv):
         res = set_backend(argv[1], argv[2])
     elif cmd == "check-provider" and len(argv) == 2:
         res = check_provider(argv[1])
+    elif cmd == "config" and len(argv) in (2, 3):
+        res = {"value": config_value(argv[1], argv[2] if len(argv) == 3 else None)}
     else:
         sys.exit(__doc__)
     print(json.dumps(res, indent=2))

@@ -68,7 +68,10 @@ not every requirement in the tracker.
    one-line guess).
 
 ## User gate
-Before writing anything, show the identified target and ask the user to confirm it or name a different issue. Do not continue on a "no".
+If this run was invoked in auto mode with `git-dev-target` excluded from `auto.gates`, skip this
+confirmation — state the identified target and proceed directly. Otherwise: before writing
+anything, show the identified target and ask the user to confirm it or name a different issue. Do
+not continue on a "no".
 
 ## Output
 Write the confirmed target (validated against its required fields):

@@ -52,6 +52,14 @@ class WorkflowCtx(Ctx):
         return self.read_json("git-dev.data/work/handoff.json")[section]
 
 
+def dispatched_subagent(c, subagent_type):
+    """True if an Agent tool call with this exact subagent_type appears anywhere in the phase's
+    tool calls — the acceptance signal for "the execute/review/plan step actually used its
+    subagent", not just that the parent session behaved as if it had."""
+    return any(t["name"] == "Agent" and t["input"].get("subagent_type") == subagent_type
+               for t in c.tools)
+
+
 def checks_run(c):
     return check_list([
         ("tracker data fetched", lambda: len(c.read_json("git-dev.data/tracker/version-control.json")["issues"]) == 3),
@@ -84,6 +92,7 @@ def checks_plan(c):
 def checks_execute(c):
     res = lambda: c.handoff("result")
     return check_list([
+        ("dispatched to workflow:executor subagent", lambda: dispatched_subagent(c, "workflow:executor")),
         ("on branch fix/2-*", lambda: c.branch().startswith("fix/2-")),
         ("result.json: failed before, passed after",
             lambda: (res()["test_before"], res()["test_after"]) == ("failed", "passed")),

@@ -22,3 +22,13 @@
 #     kind: req_tracker            # version_control | req_tracker
 #     command: python
 #     args: C:\path\to\my_jira_provider\server.py
+
+# Optional. Chains the 4 (or 5, with review) workflow steps automatically from git-dev-run instead
+# of asking what to do after each one. Default is unset/false: fully gated, unchanged from today.
+# gates is a comma-separated list of steps that still pause for their own confirmation even in
+# auto mode (empty/unset = every step still pauses; auto mode then only changes who decides to
+# *start* the next step, not whether that step still asks). git-dev-update's gate is never skipped
+# regardless of this list — see its own skill.
+# auto:
+#   enabled: true
+#   gates: plan,update

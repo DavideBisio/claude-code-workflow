@@ -187,6 +187,75 @@ class SkillStructure(unittest.TestCase):
         self.assertIn("git-dev-setup", run_skill)
 
 
+def _frontmatter_tools(path):
+    text = path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.strip().startswith("tools:"):
+            return {t.strip() for t in line.split(":", 1)[1].split(",")}
+    return set()
+
+
+class AgentDefinitions(unittest.TestCase):
+    def test_executor_can_edit_and_run_commands(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "executor.md")
+        self.assertEqual(tools, {"Read", "Write", "Edit", "Bash", "Grep", "Glob"})
+
+    def test_reviewer_is_read_only(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "reviewer.md")
+        self.assertEqual(tools, {"Read", "Grep", "Glob"})
+
+    def test_explorer_is_read_only(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "explorer.md")
+        self.assertEqual(tools, {"Read", "Grep", "Glob"})
+
+
+class SubagentWiring(unittest.TestCase):
+    def test_review_skill_exists_and_dispatches_to_reviewer_agent(self):
+        text = (ROOT / "skills" / "git-dev-review" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:reviewer", text)
+
+    def test_execute_dispatches_to_executor_agent(self):
+        text = (ROOT / "skills" / "git-dev-execute" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:executor", text)
+
+    def test_plan_dispatches_to_explorer_agent(self):
+        text = (ROOT / "skills" / "git-dev-plan" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:explorer", text)
+
+
+class AutoMode(unittest.TestCase):
+    def test_run_chains_steps_when_auto_enabled(self):
+        text = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("auto.enabled", text)
+
+    def test_each_gated_step_can_skip_its_gate_in_auto_mode(self):
+        for skill in ("git-dev-target", "git-dev-plan", "git-dev-execute", "git-dev-update", "git-dev-review"):
+            text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("auto mode", text.lower())
+
+    def test_config_reads_auto_gates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "auto:\n  enabled: true\n  gates: plan,update\n", encoding="utf-8")
+            out = json.loads(run(DATA, "config", "auto.enabled", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": "true"})
+            out2 = json.loads(run(DATA, "config", "auto.gates", cwd=tmp).stdout)
+            self.assertEqual(out2, {"value": "plan,update"})
+
+    def test_config_returns_default_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(DATA, "config", "auto.enabled", "false", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": "false"})
+
+    def test_config_returns_null_when_missing_and_no_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(DATA, "config", "auto.enabled", cwd=tmp).stdout)
+            self.assertIsNone(out["value"])
+
+
 class MiniConfig(unittest.TestCase):
     def test_nested_keys_and_comments(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -26,17 +26,29 @@ If `text` is not `null`, use the command(s) it names for steps 2 and 4 below. If
 the user for the test command rather than guessing.
 
 ## User gate
-Before changing anything, state what will happen (create the branch, write the test, change code, commit) and ask the user to confirm. Do not continue on a "no".
+If this run was invoked in auto mode with `git-dev-execute` excluded from `auto.gates`, skip this
+confirmation — state what you're about to do and proceed directly. Otherwise: before changing
+anything, state what will happen (dispatch to the executor agent: create the branch, write the
+test, change code, commit) and ask the user to confirm. Do not continue on a "no".
 
 ## Operation
-1. `git switch -c <branch from the plan>`.
-2. **Test first (mock).** Write the test from the plan. Run it and confirm it fails. If it passes already, stop and report.
-3. **Fix (mock).** Make the planned change.
-4. **Test after the fix (mock).** It must pass. If it fails, go back to 3 (at most 3 tries), then stop and report.
-5. **Commit** the fix and the test only (add them by path, not `git-dev.data/`), message as planned. Do not push.
+Dispatch the whole test-first/fix/test-after/commit loop to the `workflow:executor` agent (via the
+Agent tool, `subagent_type: "workflow:executor"`), rather than doing it inline in this session —
+this is the heaviest, most context-hungry step, and the agent's own file keeps it from re-asking
+for confirmation or re-discovering what's already been resolved. Give it:
+- the branch name, `source_branch`, and `target_branch` from the plan
+- the test spec and fix spec from the plan
+- the resolved test command from Setup (or, if that was `null`, whatever you asked the user for)
+
+The agent creates the branch, writes the failing test, confirms it fails, makes the fix, confirms
+the test passes (retrying the fix at most 3 times), and commits the fix and test only (not
+`git-dev.data/`) with the plan's commit message. It does not push. If the agent reports it
+couldn't get the test to pass after 3 tries, or that the test passed before any fix, stop and
+report that — don't retry the whole dispatch yourself.
 
 ## Output
-Write the result (required keys: `branch`, `commit`, `test_id`, `test_before`, `test_after`):
+Validate the agent's report has the required keys, then write it (you write the handoff, not the
+agent): `{"branch", "commit", "test_id", "test_before", "test_after"}`, e.g.
 `{"branch": "...", "commit": "...", "test_id": "...", "test_before": "failed", "test_after": "passed"}`.
 
 ```bash

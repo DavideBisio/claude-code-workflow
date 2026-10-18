@@ -85,13 +85,37 @@ gitignored, never committed). Read them and summarize only what matters: open is
 requests, milestones, failed or uncovered requirements. If a `github`-backed provider errors (e.g.
 `gh` not installed/authenticated), stop and report the error rather than falling back silently.
 
-## 3. Ask the user what to do
+## 3. Check for opt-in auto mode
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.enabled false
+```
+Default is unset/`false` — behavior is unchanged, go straight to step 4. If it's `true`, this
+session chains the workflow automatically instead of asking what to do each time: say once that
+auto mode is on, then fetch the gate list and start the chain from the first step whose
+predecessor has a newer completion date in `state.json` (same selection rule as step 4's manual
+choice):
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.gates ""
+```
+Split the result on commas (empty string = no gates named = every step still pauses for its own
+confirmation, i.e. auto mode only changes who decides to run the *next* step, not whether each one
+still asks). For each step in order (`git-dev-target`, `git-dev-plan`, `git-dev-execute`,
+`git-dev-review` if you want review in the chain, `git-dev-update`), invoke the skill
+`workflow:<step>` noting that this run is in auto mode and naming whether that step is in the gate
+list (so its own "User gate" section knows whether to skip its confirmation — `git-dev-update`'s
+never skips regardless, per its own skill). Stop the chain if any step reports a failure, a stop
+condition (e.g. no opened candidates), or asks a question only a human can answer (e.g. a
+`blocked_by` ordering conflict in `git-dev-target`) — auto mode chains the happy path, not past a
+step that's genuinely stuck. After the chain ends (success, stop, or `git-dev-update` completes),
+go back to step 1.
+
+## 4. Ask the user what to do
 One question, with these options:
-- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
+- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-review` (optional), `git-dev-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
 - **Reconfigure**: re-run setup (backend choice and/or the `project-prompt.md` sections) without treating it as first-time setup.
 - **Return status**: show the workflow status.
 
-## 4. Act on the choice
+## 5. Act on the choice
 - **Run a step**: invoke the skill `workflow:<step>` and follow it.
 - **Reconfigure**: invoke the skill `workflow:git-dev-setup` and follow it.
 - **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion date from `git-dev.data/state.json` (`never` if absent).

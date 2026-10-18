@@ -27,6 +27,11 @@ commit that bumps a version file) before opening the merge request, rather than 
 and fixing it after.
 
 ## User gate
+This gate is never skipped, even in auto mode and even if `git-dev-update` is left out of
+`auto.gates` — its actions (tracker writes, a real push, a real PR) are exactly the kind of
+hard-to-reverse, real-world side effects a human must confirm regardless of how the rest of the
+run is configured.
+
 Before calling any tool, list the calls you will make (coverage updates, merge request, and — for
 a `github-*` version-control provider — pushing the branch, since a real PR cannot exist without
 the branch on the remote) and ask the user to confirm. Do not continue on a "no".
