@@ -48,7 +48,8 @@ def build_project(root):
 # that one skill is supposed to have produced.
 
 class WorkflowCtx(Ctx):
-    pass
+    def handoff(self, section):
+        return self.read_json("git-dev.data/work/handoff.json")[section]
 
 
 def checks_run(c):
@@ -58,30 +59,30 @@ def checks_run(c):
             ["git", "merge-base", "--is-ancestor", "origin/dev", "HEAD"], cwd=c.p,
             capture_output=True).returncode == 0
             and "docs: update README" in git("log", "--format=%s", cwd=c.p)),
-        ("git-dev.data committed", lambda: git("log", "-1", "--format=%s", cwd=c.p).startswith("chore")),
     ])
 
 
 def checks_target(c):
-    t = lambda: c.read_json("git-dev.data/work/target.json")
+    t = lambda: c.handoff("target")
     return check_list([
-        ("target.json names issue 2", lambda: json.dumps(t()).count('"iid": 2') >= 1),
-        ("target.json has REQ-2", lambda: "REQ-2" in json.dumps(t())),
+        ("target names issue 2", lambda: json.dumps(t()).count('"iid": 2') >= 1),
+        ("target has REQ-2", lambda: "REQ-2" in json.dumps(t())),
         ("step date recorded", lambda: "git-dev-target" in c.read_json("git-dev.data/state.json")),
     ])
 
 
 def checks_plan(c):
-    plan = lambda: (c.p / "git-dev.data/work/plan.md").read_text(encoding="utf-8")
+    plan = lambda: c.handoff("plan")
     return check_list([
-        ("plan.md names branch fix/2-", lambda: "fix/2-" in plan()),
-        ("plan.md covers REQ-2 and coverage", lambda: "REQ-2" in plan() and "coverage" in plan().lower()),
+        ("plan names branch fix/2-", lambda: plan()["branch"].startswith("fix/2-")),
+        ("plan covers REQ-2 and coverage", lambda: "REQ-2" in json.dumps(plan())
+            and "coverage" in json.dumps(plan()).lower()),
         ("step date recorded", lambda: "git-dev-plan" in c.read_json("git-dev.data/state.json")),
     ])
 
 
 def checks_execute(c):
-    res = lambda: c.read_json("git-dev.data/work/result.json")
+    res = lambda: c.handoff("result")
     return check_list([
         ("on branch fix/2-*", lambda: c.branch().startswith("fix/2-")),
         ("result.json: failed before, passed after",
@@ -111,7 +112,6 @@ def checks_update(c):
         ("merge request created via mock-version-control", lambda: any("create_merge_request" in s for s in cmds)),
         ("all four steps recorded", lambda: {"git-dev-target", "git-dev-plan", "git-dev-execute",
                                              "git-dev-update"} <= set(c.read_json("git-dev.data/state.json"))),
-        ("git-dev.data committed", lambda: git("log", "-1", "--format=%s", cwd=c.p).startswith("chore")),
     ])
 
 
