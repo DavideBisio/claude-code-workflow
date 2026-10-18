@@ -32,7 +32,7 @@ If it reports `created: true`, this is first-time setup — pick a backend for e
 1. Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" providers` to get the valid choices per tracker kind (`version_control`, `req_tracker`). Never hardcode backend names in this step; always ask the script.
 2. Ask the user which choice to use for `version_control` and which for `req_tracker`. If no human is present to ask (e.g. a pre-approved/automated run), default both to `mock` and say so.
 3. Save each answer: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" set-backend <kind> <value>`.
-4. Tell the user to fill in `project-prompt.md`, and — if they picked anything other than the defaults — to review the matching section in `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run.
+4. Tell the user to fill in `project-prompt.md`, and — if they picked anything other than the defaults — to review the matching section in `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run. Advanced users wiring in a third-party tracker instead of `mock`/`github*` can add a `providers:` block to `config.yaml` (see the commented example there) and point `backends.<kind>` at its name; `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" check-provider <kind>` smoke-tests it before relying on it.
 
 ## 1. Fetch git state and rebase
 Git comes first so the tree is clean before `git-dev.data/` is rewritten.

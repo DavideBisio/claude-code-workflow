@@ -6,7 +6,7 @@ Replaces reading/writing raw tracker dumps and loose work/ files with one gitign
   handoff_manager.py fetch --issue N      scope requirements/coverage/specifications to issue N
   handoff_manager.py get SECTION          print handoff.json[SECTION] ("scope"|"target"|"plan"|"result")
   handoff_manager.py write SECTION JSON   validate then store handoff.json[SECTION]
-  handoff_manager.py provider KIND        print the provider dir name for KIND (passthrough)
+  handoff_manager.py provider KIND        print {name, command, tracker_file} for KIND (passthrough)
   handoff_manager.py record-step NAME     store today's date for step NAME in state.json (passthrough)
 
 Prints JSON. Stdlib only.
@@ -30,9 +30,9 @@ REQUIRED = {
 }
 
 
-def _call(server, tool, args=None):
-    res = subprocess.run([sys.executable, str(PLUGIN / "mcp" / server / "server.py"), tool,
-                          json.dumps(args or {})], capture_output=True, text=True, check=True)
+def _call(command, tool, args=None):
+    res = subprocess.run([*command, tool, json.dumps(args or {})],
+                         capture_output=True, text=True, check=True)
     return json.loads(res.stdout)
 
 
@@ -48,14 +48,14 @@ def _save(handoff):
 def fetch(issue_id):
     """Scope requirements/coverage/specifications to one issue via each provider's exact-match
     `filter`, instead of the full tracker dump `git_dev_data.py fetch` writes."""
-    vc_server, _ = git_dev_data.provider("version_control")
-    req_server, _ = git_dev_data.provider("req_tracker")
-    issue = _call(vc_server, "get_issue", {"id": issue_id})
+    vc_command = git_dev_data.provider("version_control")["command"]
+    req_command = git_dev_data.provider("req_tracker")["command"]
+    issue = _call(vc_command, "get_issue", {"id": issue_id})
     requirements, coverage, specifications = [], [], []
     for req_id in issue.get("requirements") or []:
-        requirements.append(_call(req_server, "get_requirement", {"id": req_id}))
-        coverage += _call(req_server, "list_coverage", {"filter": {"requirement_id": req_id}})
-        specifications += _call(req_server, "list_specifications", {"filter": {"requirement_id": req_id}})
+        requirements.append(_call(req_command, "get_requirement", {"id": req_id}))
+        coverage += _call(req_command, "list_coverage", {"filter": {"requirement_id": req_id}})
+        specifications += _call(req_command, "list_specifications", {"filter": {"requirement_id": req_id}})
     scope = {"issue": issue, "requirements": requirements, "coverage": coverage, "specifications": specifications}
     handoff = _load()
     handoff["scope"] = scope
@@ -97,8 +97,7 @@ def main(argv):
         print(json.dumps(res, indent=2))
         sys.exit(0 if res.get("ok") else 1)
     elif cmd == "provider" and len(argv) == 2:
-        server, fname = git_dev_data.provider(argv[1])
-        res = {"dir": server, "tracker_file": fname}
+        res = git_dev_data.provider(argv[1])
     elif cmd == "record-step" and len(argv) == 2:
         res = git_dev_data.record_step(argv[1])
     else:

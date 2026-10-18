@@ -73,7 +73,9 @@ class DataScript(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             run(DATA, "init", cwd=tmp)
             out = json.loads(run(DATA, "provider", "version_control", cwd=tmp).stdout)
-            self.assertEqual(out, {"dir": "mock-version-control", "tracker_file": "version-control.json"})
+            self.assertEqual(out, {"name": "mock-version-control",
+                                   "command": [sys.executable, str(DEV)],
+                                   "tracker_file": "version-control.json"})
 
     def test_provider_honors_config_backend(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -81,7 +83,48 @@ class DataScript(unittest.TestCase):
             (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
                 "backends:\n  req_tracker: github_labels\n", encoding="utf-8")
             out = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
-            self.assertEqual(out, {"dir": "github-req-tracker", "tracker_file": "req-tracker.json"})
+            self.assertEqual(out, {"name": "github-req-tracker",
+                                   "command": [sys.executable, str(GH_REQ)],
+                                   "tracker_file": "req-tracker.json"})
+
+    def test_provider_resolves_custom_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  req_tracker: my_custom\n"
+                "providers:\n  my_custom:\n    kind: req_tracker\n"
+                f"    command: {sys.executable}\n    args: {REQ}\n", encoding="utf-8")
+            out = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
+            self.assertEqual(out, {"name": "my_custom", "command": [sys.executable, str(REQ)],
+                                   "tracker_file": "req-tracker.json"})
+            tools_res = subprocess.run([*out["command"], "tools"], capture_output=True, text=True, cwd=tmp)
+            tools = json.loads(tools_res.stdout)
+            self.assertIn("list_requirements", {t["name"] for t in tools})
+
+    def test_provider_kind_mismatch_fails_clearly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  req_tracker: my_custom\n"
+                "providers:\n  my_custom:\n    kind: version_control\n"
+                f"    command: {sys.executable}\n    args: {REQ}\n", encoding="utf-8")
+            res = run(DATA, "provider", "req_tracker", cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("my_custom", res.stderr)
+
+    def test_check_provider_reports_missing_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(DATA, "check-provider", "req_tracker", cwd=tmp).stdout)
+            self.assertEqual(out, {"provider": "mock-req-tracker", "missing": [], "ok": True})
+
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  req_tracker: my_custom\n"
+                "providers:\n  my_custom:\n    kind: req_tracker\n"
+                f"    command: {sys.executable}\n    args: {DEV}\n", encoding="utf-8")
+            out = json.loads(run(DATA, "check-provider", "req_tracker", cwd=tmp).stdout)
+            self.assertFalse(out["ok"])
+            self.assertIn("list_requirements", out["missing"])
 
     def test_unknown_backend_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -95,6 +138,16 @@ class DataScript(unittest.TestCase):
         out = json.loads(run(DATA, "providers").stdout)
         self.assertEqual(out, {"version_control": ["mock", "github"], "req_tracker": ["mock", "github_labels"]})
 
+    def test_providers_lists_custom_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "providers:\n  my_custom:\n    kind: req_tracker\n"
+                f"    command: {sys.executable}\n    args: {REQ}\n", encoding="utf-8")
+            out = json.loads(run(DATA, "providers", cwd=tmp).stdout)
+            self.assertIn("my_custom", out["req_tracker"])
+            self.assertNotIn("my_custom", out["version_control"])
+
     def test_set_backend_appends_block_and_preserves_rest(self):
         with tempfile.TemporaryDirectory() as tmp:
             run(DATA, "init", cwd=tmp)
@@ -106,7 +159,7 @@ class DataScript(unittest.TestCase):
             self.assertTrue(after.startswith(before.rstrip("\n")))
             self.assertIn("backends:\n  req_tracker: github_labels", after)
             fetched = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
-            self.assertEqual(fetched["dir"], "github-req-tracker")
+            self.assertEqual(fetched["name"], "github-req-tracker")
 
     def test_set_backend_updates_existing_key_in_place(self):
         with tempfile.TemporaryDirectory() as tmp:

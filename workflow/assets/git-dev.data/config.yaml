@@ -13,3 +13,12 @@
 #     requirement: req             # issues with this label are the requirements
 #     test: test                   # issues with this label are coverage records (each is its own testcase)
 #     dev: dev                     # issues with this label become the req-tracker's "specifications" slot
+
+# Optional. Wire in a tracker that isn't mock/github* (Jira, Azure DevOps, Linear, an internal
+# system) by pointing backends.<kind> at a name defined here instead of a built-in choice. `args`
+# is a single argv element, taken verbatim (no shell splitting), so spaces in paths are safe.
+# providers:
+#   my_jira:
+#     kind: req_tracker            # version_control | req_tracker
+#     command: python
+#     args: C:\path\to\my_jira_provider\server.py
