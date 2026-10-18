@@ -9,24 +9,24 @@ disable-model-invocation: false
 ## Setup
 Read `git-dev.data/config.yaml` and `git-dev.data/project-prompt.md` in the project root and follow the project prompt throughout.
 
-Resolve the active provider — never hardcode `mock-version-control` vs `github-version-control`:
+Resolve the active provider — never hardcode `mock-version-control` vs `github-version-control` vs a custom provider:
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control
 ```
 
-Use the printed `dir` value in place of `<version-control-provider>` below.
+This prints `{name, command, tracker_file}`. Run the printed `command` array verbatim, followed by `TOOL '<json>'`, in place of `<version-control-provider-command>` below.
 
 ## Operation
 1. Ask the user for: `title` (required), `body` (optional), `labels` (optional — do not use the tracker labels from `config.yaml`'s `github.labels`/defaults `req`/`test`/`dev`; those are managed by `git-dev-new-req` and `git-dev-new-test`), `assignee` (optional).
 2. Show exactly what will be created.
 
 ## User gate
-Before calling anything, state what will happen and ask the user to confirm. If `<version-control-provider>` is a `github-*` dir, say plainly that this opens a **real** GitHub issue on the real repo, not a mock acknowledgement. Do not continue on a "no".
+Before calling anything, state what will happen and ask the user to confirm. If the resolved provider's `name` is a `github-*` one (or a custom provider backed by a real tracker), say plainly that this opens a **real** GitHub issue on the real repo, not a mock acknowledgement. Do not continue on a "no".
 
 ## Create
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_issue '{"title":"<title>","body":"<body>","labels":["<label>"],"assignee":"<assignee>"}'
+<version-control-provider-command> create_issue '{"title":"<title>","body":"<body>","labels":["<label>"],"assignee":"<assignee>"}'
 ```
 - Mock provider: returns `{"ok": true, "mock": true, ...}`, no effect.
 - A `github-*` provider: returns `{"ok": true, "url": "..."}` for a real issue, or `{"ok": false, "error": "..."}`.

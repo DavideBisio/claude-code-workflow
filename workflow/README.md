@@ -42,7 +42,9 @@ tests/e2e/run_e2e.py              e2e: runs a TestPlan's skills through the clau
 Each tracker (`version_control`, `req_tracker`) is produced by a provider, selected per-project via
 `backends.version_control` / `backends.req_tracker` in `git-dev.data/config.yaml` (defaults to
 `mock` if unset — existing projects are unaffected). `scripts/git_dev_data.py provider <kind>`
-prints which provider dir is active.
+prints `{name, command, tracker_file}` for whichever provider is active; skills run the printed
+`command` array verbatim (never hardcode a path under `mcp/`), so the same skill text works for a
+built-in or a custom provider.
 
 - `mock` / `mock_labels`(n/a): static sample data, `create_*`/`update_*` acknowledge with no effect.
 - `github` (version_control) / `github_labels` (req_tracker): shells out to the `gh` CLI (must be
@@ -72,13 +74,22 @@ python tests/e2e/run_e2e.py            # e2e, spends tokens: drive the skills th
 ```
 
 ### Provider contract
-Every provider (mock or github-*) exposes the same shape per resource: `list_<plural>`
-(optional exact-match `filter`), `get_<singular>` (`id`), plus whatever `create_*`/`update_*`
-tools that resource supports. Mock providers' create/update acknowledge (`"ok": true, "mock":
-true`) with no effect and ignore `filter`-less fetches; github-* providers' create/update perform
-real `gh` actions.
+Every provider (mock, github-*, or a custom one) exposes the same shape per resource:
+`list_<plural>` (optional exact-match `filter`), `get_<singular>` (`id`), plus whatever
+`create_*`/`update_*` tools that resource supports. Mock providers' create/update acknowledge
+(`"ok": true, "mock": true`) with no effect and ignore `filter`-less fetches; github-* providers'
+create/update perform real `gh` actions.
 
 CLI (prints JSON): `python mcp/mock-version-control/server.py list_issues '{"filter":{"state":"opened"}}'`, also `tools` and `call TOOL [JSON]`. Same for any other provider dir under `mcp/`.
+
+Any command implementing this same convention (`tools` / `call TOOL [JSON]` / `TOOL [JSON]`,
+printing JSON — see `mcp/common/mockmcp.py`'s `run_tools` for the reference harness) can be wired
+in as a custom provider via a `providers:` entry in `git-dev.data/config.yaml` (see the commented
+example there and **Providers (backends)** above), without forking this plugin. `scripts/
+git_dev_data.py check-provider <kind>` smoke-tests that the active provider for `<kind>` exposes
+every tool that kind needs. Making a custom provider *also* callable as a live MCP tool (not just
+the CLI the skills use) requires separately adding it to the target project's own `.mcp.json`,
+which Claude Code merges with this plugin's.
 
 ### git-dev.data/ (in the target project)
 Durable and committed: `config.yaml`, `project-prompt.md`. Gitignored and regenerated, never

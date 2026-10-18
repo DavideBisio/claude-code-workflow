@@ -28,22 +28,22 @@ a `github-*` version-control provider — pushing the branch, since a real PR ca
 the branch on the remote) and ask the user to confirm. Do not continue on a "no".
 
 ## Operation
-First resolve which providers are active (prints the provider dir name, e.g. `mock-req-tracker` or `github-req-tracker`):
+First resolve which providers are active (prints `{name, command, tracker_file}`; `name` is e.g. `mock-req-tracker` or `github-req-tracker`, or a custom provider's name from `providers:` in `config.yaml`):
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" provider req_tracker
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" provider version_control
 ```
 
-Use the printed `dir` value in place of `<req-tracker-provider>` / `<version-control-provider>` below.
+Run the printed `command` array verbatim, followed by `TOOL '<json>'`, in place of `<req-tracker-provider-command>` / `<version-control-provider-command>` below.
 
 1. **Update the requirement tracker.** For each related requirement, as in the plan: `update_coverage` if a coverage record exists, otherwise `create_coverage`.
    - Mock provider: acknowledged, no effect; `req-tracker.json` stays unchanged until the next fetch.
    - A `github-*` provider: this is a **real** action — it opens or closes/comments on a real GitHub issue. Say so plainly in the user gate above, not just "update the tracker".
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" update_coverage '{"id":"<coverage-id>","result":"passed","testcases":["<test-id>"]}'
-python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_coverage '{"requirement_id":"<req-id>","result":"passed","testcases":["<test-id>"]}'
+<req-tracker-provider-command> update_coverage '{"id":"<coverage-id>","result":"passed","testcases":["<test-id>"]}'
+<req-tracker-provider-command> create_coverage '{"requirement_id":"<req-id>","result":"passed","testcases":["<test-id>"]}'
 ```
 
 2. **Merge request, targeting `main`.** The branch was cut from `dev` (see `git-dev-plan`/
@@ -59,7 +59,7 @@ python "${CLAUDE_PLUGIN_ROOT}/mcp/<req-tracker-provider>/server.py" create_cover
 
 ```bash
 git push -u origin <branch>
-python "${CLAUDE_PLUGIN_ROOT}/mcp/<version-control-provider>/server.py" create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"main","closes":[<iid>]}'
+<version-control-provider-command> create_merge_request '{"title":"<title>","source_branch":"<branch>","target_branch":"main","closes":[<iid>]}'
 ```
 
 3. **Record the step.** The sequence is complete. `git-dev.data/` is entirely gitignored except `config.yaml`/`project-prompt.md`, neither of which this workflow touches, so there is nothing of its own to commit.
