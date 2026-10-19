@@ -23,9 +23,11 @@ Save each answer: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" set-ba
 If the user picked anything other than the defaults, tell them to review the matching section in
 `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run. Advanced users
 wiring in a third-party tracker instead of `mock`/`github*` can add a `providers:` block to
-`config.yaml` (see the commented example there) and point `backends.<kind>` at its name; `python
-"${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" check-provider <kind>` smoke-tests it before relying
-on it.
+`config.yaml` (see the commented example there): once it's there, `providers` lists its name and
+`set-backend` saves it like any built-in choice. A custom req tracker whose records are themselves
+version-control issues should set `issue_backed: true` so `git-dev-target` treats its requirements
+and specifications as candidates. `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py"
+check-provider <kind>` smoke-tests it before relying on it.
 
 ## 2. Fill in project-prompt.md
 `project-prompt.md` ships with four placeholder sections, each read by the rest of the workflow at

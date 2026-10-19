@@ -19,8 +19,8 @@ gitignored data:
   step's fetch below, for picking which issue to target next. Each is produced by whichever
   provider `config.yaml`'s `backends.version_control` / `backends.req_tracker` names (defaults to
   the mock servers). Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider
-  version_control` (or `req_tracker`) to see which is active. `state.json`: last run completion
-  date per step. `work/handoff.json`: the scoped, schema-validated handoff between steps
+  version_control` (or `req_tracker`) to see which is active. `state.json`: last completion
+  timestamp per step (read through `git_dev_data.py next-step`, not by eye). `work/handoff.json`: the scoped, schema-validated handoff between steps
   (`target`/`plan`/`result` sections), written and read only through `scripts/handoff_manager.py`
   — see that step's own skill for its shape.
 
@@ -61,7 +61,8 @@ git rebase origin/<source_branch>
 ```
 
 - Report the new commits (the `log` output above). If the rebase conflicts, stop, list the conflicting files and ask; use `git rebase --abort` only if the user says so.
-- Do not run `git reset` or push.
+- Do not run `git reset` or push — not here, and not in the drift check below. The only push this
+  workflow makes is `git-dev-update`'s, behind its own gate.
 
 ### Check for drift against `<target_branch>` (fallback only)
 `git-dev-update` targets `<target_branch>` for its merge request by default (see that skill) —
@@ -73,7 +74,7 @@ only the fallback for when that sync got missed:
 git fetch origin <target_branch>
 git log --oneline <source_branch>..origin/<target_branch>
 ```
-If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing, then merge `origin/<target_branch>` into `<source_branch>` to close the gap (confirm before pushing). Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
+If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing and ask whether to merge `origin/<target_branch>` into the local `<source_branch>` to close the gap. Merge only on a yes (if it conflicts, stop and list the files, as for the rebase above). Never push the result: tell the user that publishing `<source_branch>` (`git push origin <source_branch>`) is theirs to do. Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
 
 ## 2. Fetch tracker updates
 ```bash
@@ -105,10 +106,17 @@ Split `auto.gates` on commas into short step names (`target`, `plan`, `execute`,
   mode only changes who decides to *start* the next step.
 - **`auto.gates` non-empty**: a step it names is **gated**; a step it leaves out is **ungated**.
 - `git-dev-update` is always gated, whatever the list says (see its own skill).
+- `git-dev-execute` is always gated when either provider is real — `git_dev_data.py provider
+  version_control` / `provider req_tracker` returns a `name` not starting with `mock-`. Issue and
+  requirement text on a real tracker can be written by anyone, and it flows into the plan the
+  executor (an agent with Bash) carries out, so a human must see the plan before it runs.
 
 The chain is `git-dev-target`, `git-dev-plan`, `git-dev-execute`, then `git-dev-review` only if
-`auto.review` is `true`, then `git-dev-update`. Start from the first step whose predecessor has a
-newer completion date in `state.json` (same selection rule as step 4's manual choice). For each
+`auto.review` is `true`, then `git-dev-update`. Start from the step this prints (same selection as
+step 4's manual choice; add `--review` only when `auto.review` is `true`):
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" next-step [--review]
+``` For each
 step, invoke the skill `workflow:<step>`, telling it that this run is in auto mode and whether it
 is **gated** or **ungated** (its own "User gate" section acts on exactly that). Stop the chain if
 any step reports a failure, a stop condition (e.g. no opened candidates), or asks a question only
@@ -118,13 +126,13 @@ how it ended and go to step 4.
 
 ## 4. Ask the user what to do
 One question, with these options:
-- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-review` (optional), `git-dev-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
+- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-review` (optional), `git-dev-update` (4). Suggest the `step` printed by `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" next-step` (the first step that hasn't run since its predecessor did, by timestamp; `git-dev-review` is optional, so it isn't suggested unless `--review` is passed).
 - **Reconfigure**: re-run setup (backend choice and/or the `project-prompt.md` sections) without treating it as first-time setup.
 - **Return status**: show the workflow status.
 
 ## 5. Act on the choice
 - **Run a step**: invoke the skill `workflow:<step>` and follow it.
 - **Reconfigure**: invoke the skill `workflow:git-dev-setup` and follow it.
-- **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion date from `git-dev.data/state.json` (`never` if absent).
+- **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion timestamp from `git-dev.data/state.json` (`never` if absent).
 
 After acting, go back to step 1 and ask again. Stop when the user says so.

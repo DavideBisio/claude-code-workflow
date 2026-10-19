@@ -4,7 +4,8 @@ milestones, via the `gh` CLI against the current directory's repo (override with
 
 Unlike the mock servers, `create_*`/`update_*` perform real actions on the real repo. `create_issue`
 excludes the `req`/`test`/`dev` labels (that's the req-tracker's namespace); there is no
-`create_milestone`/`update_milestone` yet. Ids are
+`create_milestone`/`update_milestone` yet. As a live MCP server it exposes only the read tools,
+and only when `backends.version_control` is `github` (see `ghcli.mcp_served`). Ids are
 GitHub issue/PR numbers formatted as `"#<number>"`, matching GitHub's own reference syntax, so
 cross-links between issues (see github-req-tracker) use the same token everywhere.
 
@@ -18,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
-from ghcli import run, run_json, first_ref, blocking_refs  # noqa: E402
+from ghcli import run, run_json, run_list, first_ref, blocking_refs, mcp_served  # noqa: E402
 from miniconfig import load as load_config, get as config_get  # noqa: E402
 from mockmcp import run_tools  # noqa: E402
 
@@ -71,7 +72,7 @@ def _mr(rec):
 
 
 def list_issues(args):
-    recs = run_json(["issue", "list", "--state", "all", "--json", ISSUE_FIELDS, "--limit", "200"], repo=REPO) or []
+    recs = run_list(["issue", "list", "--state", "all", "--json", ISSUE_FIELDS], repo=REPO)
     recs = [r for r in recs if not TRACKER_LABELS & {l["name"] for l in r.get("labels", [])}]
     out = [_issue(r) for r in recs]
     flt = args.get("filter") or {}
@@ -117,7 +118,7 @@ def update_issue(args):
 
 
 def list_merge_requests(args):
-    recs = run_json(["pr", "list", "--state", "all", "--json", PR_FIELDS, "--limit", "200"], repo=REPO) or []
+    recs = run_list(["pr", "list", "--state", "all", "--json", PR_FIELDS], repo=REPO)
     out = [_mr(r) for r in recs]
     flt = args.get("filter") or {}
     return [r for r in out if all(r.get(k) == v for k, v in flt.items())]
@@ -132,7 +133,7 @@ def get_merge_request(args):
 
 
 def create_merge_request(args):
-    title, source, target = args.get("title", ""), args.get("source_branch"), args.get("target_branch", "dev")
+    title, source, target = args.get("title", ""), args.get("source_branch"), args.get("target_branch") or "main"
     body_lines = [args.get("body", "")] + [f"Closes #{n}" for n in args.get("closes", [])]
     gh_args = ["pr", "create", "--title", title, "--base", target, "--body", "\n".join(filter(None, body_lines))]
     if source:
@@ -166,10 +167,11 @@ TOOLS = {
     "update_issue": ("Close/reopen (`state`=closed/opened) and/or comment on an issue by `id`.", update_issue),
     "list_merge_requests": ("List pull requests. Optional exact-match `filter`.", list_merge_requests),
     "get_merge_request": ("Get one pull request by `id` (\"#<number>\").", get_merge_request),
-    "create_merge_request": ("Open a real pull request: `title`, `source_branch`, `target_branch`, optional `body`, `closes` (issue numbers).", create_merge_request),
+    "create_merge_request": ("Open a real pull request: `title`, `source_branch`, `target_branch` (default `main`), optional `body`, `closes` (issue numbers).", create_merge_request),
     "list_milestones": ("List milestones. Optional exact-match `filter`.", list_milestones),
     "get_milestone": ("Get one milestone by `id`.", get_milestone),
 }
 
 if __name__ == "__main__":
-    run_tools("github-version-control", TOOLS)
+    run_tools("github-version-control", TOOLS,
+              served=mcp_served(TOOLS, config_get(CONFIG, "backends.version_control") == "github"))

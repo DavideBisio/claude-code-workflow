@@ -13,7 +13,7 @@ Read `git-dev.data/config.yaml` and `git-dev.data/project-prompt.md` in the proj
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get plan
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" get result
 ```
-If either returns an `error`, or `result.test_after` is not `passed`, stop and tell the user to run `git-dev-execute` first. Check that the current branch is `result.branch` and its latest commit is `result.commit`.
+If either returns an `error`, or `result.test_after` is not `passed`, stop and tell the user to run `git-dev-execute` first. Check that the current branch is `result.branch` and its latest commit is `result.commit`. (The handoff drops `plan`/`result` whenever an earlier step is redone, so a `result` that is present belongs to the current target.)
 
 ## Pre-PR gate check
 Before the user gate below, fetch the checklist and check each item off explicitly — don't rely on
@@ -48,7 +48,8 @@ Run the printed `command` array verbatim, followed by `TOOL '<json>'`, in place 
 
 1. **Update the requirement tracker.** For each related requirement, as in the plan: `update_coverage` if a coverage record exists, otherwise `create_coverage`.
    - Mock provider: acknowledged, no effect; `req-tracker.json` stays unchanged until the next fetch.
-   - A `github-*` provider: this is a **real** action — it opens or closes/comments on a real GitHub issue. Say so plainly in the user gate above, not just "update the tracker".
+   - A `github-*` provider: this is a **real** action — it opens or closes/comments on a real GitHub issue. Say so plainly in the user gate above, not just "update the tracker". `create_coverage` with `result: passed` opens the test issue and closes it as completed in one call, so the requirement reads as covered on the next fetch.
+   - Check each call's `ok`; on `ok: false`, report its `error` and stop before the merge request.
 
 ```bash
 <req-tracker-provider-command> update_coverage '{"id":"<coverage-id>","result":"passed","testcases":["<test-id>"]}'

@@ -9,14 +9,18 @@ Replaces reading/writing raw tracker dumps and loose work/ files with one gitign
   handoff_manager.py prompt-section HEADING   print {heading, text} for a "## HEADING" block in
                                                project-prompt.md (text is null if missing or still
                                                only the template's <placeholder> lines)
-  handoff_manager.py provider KIND        print {name, command, tracker_file} for KIND (passthrough)
-  handoff_manager.py record-step NAME     store today's date for step NAME in state.json (passthrough)
+  handoff_manager.py provider KIND        print {name, command, tracker_file, issue_backed} for KIND (passthrough)
+  handoff_manager.py record-step NAME     store the current timestamp for step NAME in state.json (passthrough)
+
+Sections are ordered scope -> target -> plan -> result. Storing one (`fetch` stores scope) clears
+every later one, since they were derived from the old value (a new target must not inherit the
+previous issue's plan or result), and `plan`/`result` can only be written once their predecessor
+exists.
 
 Prints JSON. Stdlib only.
 """
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -26,6 +30,8 @@ import git_dev_data  # noqa: E402
 DATA = git_dev_data.DATA
 PLUGIN = git_dev_data.PLUGIN
 HANDOFF = DATA / "work" / "handoff.json"
+
+ORDER = ["scope", "target", "plan", "result"]
 
 REQUIRED = {
     "target": ["issue", "requirements", "coverage", "code_area"],
@@ -49,9 +55,7 @@ PLACEHOLDER = re.compile(r"(?:[-*]\s*)?<[^>]*>")
 
 
 def _call(command, tool, args=None):
-    res = subprocess.run([*command, tool, json.dumps(args or {})],
-                         capture_output=True, text=True, check=True)
-    return json.loads(res.stdout)
+    return git_dev_data.call_provider(command, tool, args or {})
 
 
 def _load():
@@ -63,21 +67,46 @@ def _save(handoff):
     HANDOFF.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
 
 
+def _store(section, data):
+    """Set SECTION and drop every later section (see module docstring)."""
+    handoff = _load()
+    for later in ORDER[ORDER.index(section) + 1:]:
+        handoff.pop(later, None)
+    handoff[section] = data
+    _save(handoff)
+
+
 def fetch(issue_id):
     """Scope requirements/coverage/specifications to one issue via each provider's exact-match
-    `filter`, instead of the full tracker dump `git_dev_data.py fetch` writes."""
+    `filter`, instead of the full tracker dump `git_dev_data.py fetch` writes.
+
+    The issue's own id is tried as a requirement first: under an issue-backed req tracker
+    (`github_labels`) a `req` issue is itself the requirement, and its coverage hangs off its own
+    id, not off the first `#ref` in its body. Referenced ids that don't resolve to a requirement
+    are reported under `warnings` instead of being stored as requirements."""
     vc_command = git_dev_data.provider("version_control")["command"]
-    req_command = git_dev_data.provider("req_tracker")["command"]
+    req_info = git_dev_data.provider("req_tracker")
+    req_command = req_info["command"]
     issue = _call(vc_command, "get_issue", {"id": issue_id})
-    requirements, coverage, specifications = [], [], []
-    for req_id in issue.get("requirements") or []:
-        requirements.append(_call(req_command, "get_requirement", {"id": req_id}))
-        coverage += _call(req_command, "list_coverage", {"filter": {"requirement_id": req_id}})
-        specifications += _call(req_command, "list_specifications", {"filter": {"requirement_id": req_id}})
+    if "error" in issue:
+        return {"error": f"issue {issue_id} not found: {issue['error']}"}
+    requirements, coverage, specifications, warnings = [], [], [], []
+    candidates = list(issue.get("requirements") or [])
+    if req_info["issue_backed"]:
+        candidates.insert(0, issue.get("id", issue_id))
+    for req_id in dict.fromkeys(candidates):
+        req = _call(req_command, "get_requirement", {"id": req_id})
+        if "error" in req:
+            if req_id in (issue.get("requirements") or []):
+                warnings.append(f"{req_id} is referenced by the issue but is not a requirement: {req['error']}")
+            continue
+        requirements.append(req)
+        coverage += _call(req_command, "list_coverage", {"filter": {"requirement_id": req["id"]}})
+        specifications += _call(req_command, "list_specifications", {"filter": {"requirement_id": req["id"]}})
     scope = {"issue": issue, "requirements": requirements, "coverage": coverage, "specifications": specifications}
-    handoff = _load()
-    handoff["scope"] = scope
-    _save(handoff)
+    if warnings:
+        scope["warnings"] = warnings
+    _store("scope", scope)
     return scope
 
 
@@ -97,9 +126,10 @@ def write(section, data):
     mismatched = [k for k, t in TYPES.get(section, {}).items() if k in data and not isinstance(data[k], t)]
     if mismatched:
         return {"ok": False, "error": f"wrong type for key(s) in '{section}': {mismatched}"}
-    handoff = _load()
-    handoff[section] = data
-    _save(handoff)
+    previous = ORDER[ORDER.index(section) - 1]
+    if previous != "scope" and previous not in _load():
+        return {"ok": False, "error": f"'{previous}' is not set; write it (run its step) before '{section}'"}
+    _store(section, data)
     return {"ok": True, "section": section}
 
 
@@ -129,6 +159,9 @@ def main(argv):
     cmd = argv[0] if argv else ""
     if cmd == "fetch" and len(argv) == 3 and argv[1] == "--issue":
         res = fetch(argv[2])
+        if "error" in res:
+            print(json.dumps(res, indent=2))
+            sys.exit(1)
     elif cmd == "get" and len(argv) == 2:
         res = get(argv[1])
     elif cmd == "write" and len(argv) == 3:

@@ -12,6 +12,13 @@ HANDOFF = ROOT / "scripts" / "handoff_manager.py"
 GITIGNORE_TEMPLATE = ROOT / "assets" / "git-dev.data" / ".gitignore"
 
 
+TARGET = {"issue": {"iid": 2}, "requirements": [], "coverage": [], "code_area": "app/"}
+PLAN = {"branch": "fix/2-x", "test": "t", "fix": "f", "verification": "v",
+        "commit_message": "m", "tracker_updates": []}
+RESULT = {"branch": "fix/2-x", "commit": "abc", "test_id": "TC-4", "test_before": "failed",
+          "test_after": "passed"}
+
+
 def run(*args, cwd=None):
     return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True, cwd=cwd)
 
@@ -126,11 +133,101 @@ class WriteTypeValidation(unittest.TestCase):
     def test_write_accepts_correct_types(self):
         with tempfile.TemporaryDirectory() as tmp:
             run(DATA, "init", cwd=tmp)
+            run(HANDOFF, "write", "target", json.dumps(TARGET), cwd=tmp)
             payload = {"branch": "fix/1-x", "test": "t", "fix": "f", "verification": "v",
                        "commit_message": "m", "tracker_updates": []}
             res = run(HANDOFF, "write", "plan", json.dumps(payload), cwd=tmp)
             self.assertEqual(res.returncode, 0)
             self.assertTrue(json.loads(res.stdout)["ok"])
+
+
+class Staleness(unittest.TestCase):
+    def test_new_target_clears_previous_plan_and_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            for section, payload in (("target", TARGET), ("plan", PLAN), ("result", RESULT)):
+                self.assertEqual(run(HANDOFF, "write", section, json.dumps(payload), cwd=tmp).returncode, 0)
+            new_target = {**TARGET, "issue": {"iid": 3}}
+            run(HANDOFF, "write", "target", json.dumps(new_target), cwd=tmp)
+            self.assertEqual(json.loads(run(HANDOFF, "get", "target", cwd=tmp).stdout), new_target)
+            for section in ("plan", "result"):
+                self.assertIn("error", json.loads(run(HANDOFF, "get", section, cwd=tmp).stdout), section)
+
+    def test_new_plan_clears_previous_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            for section, payload in (("target", TARGET), ("plan", PLAN), ("result", RESULT), ("plan", PLAN)):
+                run(HANDOFF, "write", section, json.dumps(payload), cwd=tmp)
+            self.assertIn("error", json.loads(run(HANDOFF, "get", "result", cwd=tmp).stdout))
+
+    def test_fetch_clears_every_later_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            run(HANDOFF, "write", "target", json.dumps(TARGET), cwd=tmp)
+            run(HANDOFF, "fetch", "--issue", "3", cwd=tmp)
+            self.assertIn("error", json.loads(run(HANDOFF, "get", "target", cwd=tmp).stdout))
+
+    def test_section_needs_its_predecessor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(HANDOFF, "write", "plan", json.dumps(PLAN), cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("target", json.loads(res.stdout)["error"])
+            run(HANDOFF, "write", "target", json.dumps(TARGET), cwd=tmp)
+            res = run(HANDOFF, "write", "result", json.dumps(RESULT), cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("plan", json.loads(res.stdout)["error"])
+
+
+def _stub_provider(path, resources):
+    """A provider script serving RESOURCES through the shared mock harness."""
+    path.write_text(
+        "import sys\n"
+        f"sys.path.insert(0, {str(ROOT / 'mcp' / 'common')!r})\n"
+        "from mockmcp import run\n"
+        f"run('stub', {resources!r})\n", encoding="utf-8")
+
+
+class FetchScope(unittest.TestCase):
+    def test_not_found_issue_is_an_error_not_a_scope(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(HANDOFF, "fetch", "--issue", "99", cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("error", json.loads(res.stdout))
+            self.assertIn("error", json.loads(run(HANDOFF, "get", "scope", cwd=tmp).stdout))
+
+    def test_requirement_issue_is_its_own_requirement_when_issue_backed(self):
+        # Under github_labels a `req` issue is the requirement; its coverage hangs off its own id,
+        # and a body ref (#1) that isn't a requirement is a warning, not a requirement entry.
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            vc, req = Path(tmp) / "vc.py", Path(tmp) / "req.py"
+            _stub_provider(vc, {"issue": ("issues", [{"id": "#5", "iid": 5, "requirements": ["#1"]}])})
+            _stub_provider(req, {
+                "requirement": ("requirements", [{"id": "#5", "title": "R", "state": "opened"}]),
+                "coverage": ("coverage", [{"id": "#9", "requirement_id": "#5"}]),
+                "specification": ("specifications", [{"id": "#8", "requirement_id": "#5"}]),
+            })
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  version_control: vc\n  req_tracker: rq\n"
+                f"providers:\n  vc:\n    kind: version_control\n    command: {sys.executable}\n    args: {vc}\n"
+                f"  rq:\n    kind: req_tracker\n    command: {sys.executable}\n    args: {req}\n"
+                "    issue_backed: true\n", encoding="utf-8")
+            res = run(HANDOFF, "fetch", "--issue", "#5", cwd=tmp)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            scope = json.loads(res.stdout)
+            self.assertEqual([r["id"] for r in scope["requirements"]], ["#5"])
+            self.assertEqual([c["id"] for c in scope["coverage"]], ["#9"])
+            self.assertEqual([s["id"] for s in scope["specifications"]], ["#8"])
+            self.assertTrue(any("#1" in w for w in scope["warnings"]))
+
+    def test_mock_scope_includes_linked_specification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            scope = json.loads(run(HANDOFF, "fetch", "--issue", "2", cwd=tmp).stdout)
+            self.assertEqual([s["id"] for s in scope["specifications"]], ["SPEC-2"])
+            self.assertNotIn("warnings", scope)
 
 
 class GitignoreCoversEphemeralFiles(unittest.TestCase):

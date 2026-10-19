@@ -63,8 +63,8 @@ code review) found, among others:
   slot, so a Jama-style requirement tracker needs nothing beyond GitHub. The traceability tools
   above keep requirements in files or code; the issue-driven ones have no coverage layer.
 - **Swappable providers behind one contract.** `mock` and `gh`-backed providers expose the same
-  tools, chosen per project in `config.yaml`, so tests run without a network and another tracker
-  could be added later.
+  tools and the same record shapes (checked by tests), chosen per project in `config.yaml`, so
+  tests run without a network and another tracker can be plugged in as a custom provider.
 - **Small, skills-first and gated per step.** Every step asks before acting by default and says
   plainly when an action is real. Opt-in auto mode can chain steps, but the step that pushes and
   opens the PR always asks. Subagents handle only the narrow execute/explore/review work, never a
