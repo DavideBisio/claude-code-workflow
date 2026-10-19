@@ -17,9 +17,10 @@ run here is the same workflow this repo develops and ships (see `README.md` and
   record/testcase (linked to its requirement via the first `#<number>` reference in its body);
   labeled `dev` is a "specification" (repurposed as a planned dev action, since GitHub has no
   native spec concept). `testplans` is always empty for this backend.
-- Known gaps (see workflow/README.md "Not done"): status output of `git-dev-run` is a placeholder;
-  github-* providers are only unit-tested on their no-`gh`-call surface, not exercised by the e2e
-  harness (which only covers the mock providers).
+- Known gaps (see workflow/README.md "Not done"): status output of `git-dev-run` only replays each
+  step's last summary and run date, with no aggregate reporting; github-* providers are covered by
+  unit tests with `gh` stubbed out (parsing, the calls each write makes) plus manual checks against
+  a real repo, but not exercised by the e2e harness (which only covers the mock providers).
 
 ## Branching strategy
 - source_branch: dev
