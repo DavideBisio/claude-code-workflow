@@ -56,6 +56,9 @@ def _serve(server_name, tools):
         sys.stdout.write(json.dumps(msg) + "\n")
         sys.stdout.flush()
 
+    # MCP stdio is UTF-8 JSON-RPC; don't let the console code page (cp1252 on Windows) decode it.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -88,11 +91,16 @@ def run(server_name, resources, argv=None):
     return run_tools(server_name, make_tools(resources), argv)
 
 
-def run_tools(server_name, tools, argv=None):
+def run_tools(server_name, tools, argv=None, served=None):
     """Same stdio-server + CLI harness as `run()`, for a pre-built `{name: (description, handler)}`
-    dict rather than one generated from static `resources` (used by the non-mock providers)."""
+    dict rather than one generated from static `resources` (used by the non-mock providers).
+
+    `served`, if given, is the subset of tool names exposed when running as an MCP stdio server;
+    the CLI (what the skills call, behind their own gates) always gets every tool."""
     argv = sys.argv[1:] if argv is None else argv
     if not argv:
+        if served is not None:
+            tools = {n: t for n, t in tools.items() if n in served}
         return _serve(server_name, tools)
     if argv[0] == "tools":
         print(json.dumps([{"name": n, "description": d} for n, (d, _) in tools.items()], indent=2))
@@ -103,6 +111,6 @@ def run_tools(server_name, tools, argv=None):
     try:
         args = json.loads(rest[1]) if len(rest) > 1 else {}
         print(json.dumps(_call(tools, rest[0], args), indent=2))
-    except (KeyError, json.JSONDecodeError) as e:
+    except Exception as e:  # unknown tool, bad JSON, or a provider failure (e.g. `gh` not authenticated)
         print(json.dumps({"error": str(e)}))
         sys.exit(1)

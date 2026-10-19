@@ -5,10 +5,17 @@ providers keep the same subprocess-callable contract as the mock servers.
 import json
 import re
 import subprocess
+import sys
+
+# `--limit` for list calls; see `run_list`.
+LIMIT = 1000
 
 REF_RE = re.compile(r"#(\d+)")
-BLOCKS_RE = re.compile(r"\bblocks?\b\D{0,10}#(\d+)", re.I)
-BLOCKED_BY_RE = re.compile(r"\bblocked\s+by\b\D{0,10}#(\d+)", re.I)
+# One or more refs joined by commas/"and"/"&"/"/", e.g. "#3, #4 and #5": every ref in the list
+# belongs to the keyword, so none of them leaks into `first_ref` as a requirement link.
+_REF_LIST = r"#\d+(?:\s*(?:,|\band\b|&|/)\s*#\d+)*"
+BLOCKS_RE = re.compile(rf"\bblocks?\b\D{{0,10}}({_REF_LIST})", re.I)
+BLOCKED_BY_RE = re.compile(rf"\bblocked\s+by\b\D{{0,10}}({_REF_LIST})", re.I)
 
 
 class GhError(RuntimeError):
@@ -19,7 +26,8 @@ def run(args, repo=None, input_=None):
     cmd = ["gh", *args]
     if repo:
         cmd += ["--repo", repo]
-    res = subprocess.run(cmd, capture_output=True, text=True, input=input_)
+    # gh writes UTF-8 regardless of the console code page (cp1252 on Windows would garble or fail).
+    res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", input=input_)
     if res.returncode:
         raise GhError(res.stderr.strip() or f"gh {' '.join(args)} failed")
     return res.stdout
@@ -28,6 +36,24 @@ def run(args, repo=None, input_=None):
 def run_json(args, repo=None):
     out = run(args, repo=repo).strip()
     return json.loads(out) if out else None
+
+
+def run_list(args, repo=None, limit=LIMIT):
+    """`gh <noun> list ...` with `--limit`. gh lists newest first, so a truncated list silently
+    drops the *oldest* records (the ones `git-dev-target` prefers); warn on stderr when the limit
+    is hit rather than returning a short list as if it were complete."""
+    recs = run_json([*args, "--limit", str(limit)], repo=repo) or []
+    if len(recs) >= limit:
+        print(f"warning: `gh {' '.join(args[:2])}` hit --limit {limit}; older records are missing",
+              file=sys.stderr)
+    return recs
+
+
+def mcp_served(tools, enabled):
+    """Tool names a github-* provider exposes as live MCP tools: none unless the project's
+    `backends.<kind>` selects it, and then only the read-only `list_*`/`get_*` ones. Real writes
+    (`create_*`/`update_*`) run only through the CLI, which the skills call behind their gates."""
+    return {n for n in tools if n.startswith(("list_", "get_"))} if enabled else set()
 
 
 def first_ref(*texts, exclude=()):
@@ -48,5 +74,11 @@ def blocking_refs(body):
     blocked_by)` lists of `"#<number>"` strings. A text heuristic over the issue body, not
     GitHub's native sub-issue/blocked-by relationship."""
     body = body or ""
-    return ([f"#{n}" for n in BLOCKS_RE.findall(body)],
-            [f"#{n}" for n in BLOCKED_BY_RE.findall(body)])
+
+    def refs(pattern):
+        out = []
+        for group in pattern.findall(body):
+            out += [f"#{n}" for n in REF_RE.findall(group) if f"#{n}" not in out]
+        return out
+
+    return refs(BLOCKS_RE), refs(BLOCKED_BY_RE)

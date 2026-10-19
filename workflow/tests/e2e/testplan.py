@@ -21,15 +21,17 @@ TEMPLATE = Path(__file__).resolve().parent / "fixtures" / "basic-python"
 # ---------- fixture ----------
 
 def post_init(seed):
-    """Create git-dev.data/ via the plugin's own script, then fill in the two files a real user
-    would edit by hand before running git-dev-run for the first time."""
+    """Create git-dev.data/ via the plugin's own script, then fill in project-prompt.md as a real
+    user would before running git-dev-run for the first time. config.yaml keeps the shipped
+    template (mock backends). The `Test commands` section matters: without it, git-dev-execute
+    asks for the command, which a non-interactive `claude -p` run can't answer."""
     subprocess.run([sys.executable, str(PLUGIN / "scripts" / "git_dev_data.py"), "init"],
                    cwd=seed, capture_output=True, check=True)
-    (seed / "git-dev.data" / "config.yaml").write_text(
-        "test_command: python -m unittest\n", encoding="utf-8")
     (seed / "git-dev.data" / "project-prompt.md").write_text(
-        "Small Python project. Run tests with `python -m unittest` from the project root. "
-        "Put tests in `tests/` (unittest), code in `app/`. Keep changes minimal.\n", encoding="utf-8")
+        "Small Python project. Put tests in `tests/` (unittest), code in `app/`. "
+        "Keep changes minimal.\n\n"
+        "## Test commands\n"
+        "- `python -m unittest` (from the project root)\n", encoding="utf-8")
 
 
 def diverge(seed):
@@ -50,6 +52,14 @@ def build_project(root):
 class WorkflowCtx(Ctx):
     def handoff(self, section):
         return self.read_json("git-dev.data/work/handoff.json")[section]
+
+
+def dispatched_subagent(c, subagent_type):
+    """True if an Agent tool call with this exact subagent_type appears anywhere in the phase's
+    tool calls — the acceptance signal for "the execute/review/plan step actually used its
+    subagent", not just that the parent session behaved as if it had."""
+    return any(t["name"] == "Agent" and t["input"].get("subagent_type") == subagent_type
+               for t in c.tools)
 
 
 def checks_run(c):
@@ -84,6 +94,7 @@ def checks_plan(c):
 def checks_execute(c):
     res = lambda: c.handoff("result")
     return check_list([
+        ("dispatched to workflow:executor subagent", lambda: dispatched_subagent(c, "workflow:executor")),
         ("on branch fix/2-*", lambda: c.branch().startswith("fix/2-")),
         ("result.json: failed before, passed after",
             lambda: (res()["test_before"], res()["test_after"]) == ("failed", "passed")),
@@ -122,7 +133,7 @@ TESTPLAN = TestPlan(
     ctx_factory=WorkflowCtx,
     phases=[
         Phase("run", "git-dev-run", checks=checks_run, expect_clean_tree=True, expect_branch="dev", expect_no_push=True,
-              note="When step 3 asks what to do, answer 'Return status', give the status, then STOP (do not loop back)."),
+              note="When step 4 asks what to do, answer 'Return status', give the status, then STOP (do not loop back)."),
         Phase("target", "git-dev-target", checks=checks_target, expect_branch="dev"),
         Phase("plan", "git-dev-plan", checks=checks_plan, expect_branch="dev"),
         Phase("execute", "git-dev-execute", checks=checks_execute, expect_no_push=True),

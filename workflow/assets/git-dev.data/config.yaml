@@ -1,8 +1,9 @@
 # PLACEHOLDER: skill custom config (project-specific)
 
 # Optional. Which provider backs each tracker; defaults to mock if omitted. Read by
-# scripts/git_dev_data.py (a tiny stdlib key:value reader, not full YAML: only this flat/
-# one-level-nested shape is supported, no lists or quoted strings).
+# scripts/git_dev_data.py (a tiny stdlib key:value reader, not full YAML: two-space-indented
+# nesting of `key: value` pairs, `- item` lists under a `key:` header, and quoted values; a `#`
+# starts a comment only at line start or after a space).
 # backends:
 #   version_control: github        # mock | github
 #   req_tracker: github_labels     # mock | github_labels
@@ -15,10 +16,30 @@
 #     dev: dev                     # issues with this label become the req-tracker's "specifications" slot
 
 # Optional. Wire in a tracker that isn't mock/github* (Jira, Azure DevOps, Linear, an internal
-# system) by pointing backends.<kind> at a name defined here instead of a built-in choice. `args`
-# is a single argv element, taken verbatim (no shell splitting), so spaces in paths are safe.
+# system) by pointing backends.<kind> at a name defined here instead of a built-in choice
+# (`git_dev_data.py set-backend <kind> <name>` accepts it). `args` is either one argv element or a
+# `- item` list of them, each taken verbatim (no shell splitting), so spaces in paths are safe.
+# `issue_backed: true` marks a req tracker whose records are themselves version-control issues.
 # providers:
 #   my_jira:
 #     kind: req_tracker            # version_control | req_tracker
 #     command: python
-#     args: C:\path\to\my_jira_provider\server.py
+#     args:
+#       - C:\path\to\my_jira_provider\server.py
+#       - --profile=work
+#     issue_backed: false
+
+# Optional. Chains the 4 (or 5, with review) workflow steps automatically from git-dev-run instead
+# of asking what to do after each one. Default is unset/false: fully gated, unchanged from today.
+# gates is a comma-separated list of steps that still pause for their own confirmation in auto
+# mode, by short name: target, plan, execute, review, update. Empty/unset = every step still
+# pauses; auto mode then only changes who decides to *start* the next step, not whether that step
+# still asks. Only a non-empty list lets the steps it leaves out skip their confirmation.
+# git-dev-update's gate is never skipped regardless of this list — see its own skill.
+# git-dev-execute's gate is likewise never skipped when either provider is real (not mock-*).
+# review: true adds git-dev-review to the chain, between execute and update (default false).
+# Booleans accept true/false, yes/no, on/off, in any case.
+# auto:
+#   enabled: true
+#   gates: plan,update
+#   review: true

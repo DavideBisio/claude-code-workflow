@@ -1,6 +1,6 @@
 ---
 name: git-dev-run
-description: Orchestrator for the git-dev workflow. Rebases dev, fetches version-control and requirement-tracker data, then asks what to do (run a step, show status). Run manually.
+description: Orchestrator for the git-dev workflow. Rebases the configured source branch, fetches version-control and requirement-tracker data, then asks what to do (run a step, reconfigure, show status), or chains the steps itself in opt-in auto mode. Run manually.
 disable-model-invocation: true
 ---
 
@@ -19,8 +19,8 @@ gitignored data:
   step's fetch below, for picking which issue to target next. Each is produced by whichever
   provider `config.yaml`'s `backends.version_control` / `backends.req_tracker` names (defaults to
   the mock servers). Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider
-  version_control` (or `req_tracker`) to see which is active. `state.json`: last run completion
-  date per step. `work/handoff.json`: the scoped, schema-validated handoff between steps
+  version_control` (or `req_tracker`) to see which is active. `state.json`: last completion
+  timestamp per step (read through `git_dev_data.py next-step`, not by eye). `work/handoff.json`: the scoped, schema-validated handoff between steps
   (`target`/`plan`/`result` sections), written and read only through `scripts/handoff_manager.py`
   — see that step's own skill for its shape.
 
@@ -28,43 +28,57 @@ gitignored data:
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" init
 ```
 
-If it reports `created: true`, this is first-time setup — pick a backend for each tracker before anything else runs:
-1. Run `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" providers` to get the valid choices per tracker kind (`version_control`, `req_tracker`). Never hardcode backend names in this step; always ask the script.
-2. Ask the user which choice to use for `version_control` and which for `req_tracker`. If no human is present to ask (e.g. a pre-approved/automated run), default both to `mock` and say so.
-3. Save each answer: `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" set-backend <kind> <value>`.
-4. Tell the user to fill in `project-prompt.md`, and — if they picked anything other than the defaults — to review the matching section in `config.yaml` (e.g. `github:` for repo/label overrides) before the first real run. Advanced users wiring in a third-party tracker instead of `mock`/`github*` can add a `providers:` block to `config.yaml` (see the commented example there) and point `backends.<kind>` at its name; `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" check-provider <kind>` smoke-tests it before relying on it.
+If it reports `created: true`, this is first-time setup: invoke the skill `workflow:git-dev-setup`
+and follow it before anything else runs (it picks the trackers' backends and walks the user through
+`project-prompt.md`'s placeholder sections). Do not inline those steps here.
 
 ## 1. Fetch git state and rebase
+Resolve the branching strategy once, before touching git, so the rest of this step uses the
+project's actual convention instead of a hardcoded one:
+
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" prompt-section "Branching strategy"
+```
+Read `source_branch` and `target_branch` out of the returned text (e.g. a `source_branch: dev`
+line); if `text` is `null` or either value isn't stated, default to `source_branch: dev`,
+`target_branch: main` — today's convention. Use `<source_branch>`/`<target_branch>` for every git
+command below in place of the literal `dev`/`main`.
+
 Git comes first so the tree is clean before `git-dev.data/` is rewritten.
 
 ```bash
 git branch --show-current
 git status --short
 ```
-- The expected branch is `dev`. If on another branch, say so and ask whether to continue; never switch branches without being asked.
 - If the working tree is not clean, stop and ask; do not stash or discard anything.
-- Otherwise bring `dev` up to the latest remote commit:
+- The expected branch is `<source_branch>`. If on another branch, say so, skip the rebase and the
+  drift-check merge below (they only ever apply to `<source_branch>` itself), and continue with the
+  read-only parts; never switch branches without being asked. Rebasing another branch would
+  rewrite it: e.g. the work branch `git-dev-execute` just committed to, whose commit hash
+  `git-dev-update` checks against the handoff `result`.
+- On `<source_branch>`, bring it up to the latest remote commit:
 
 ```bash
-git fetch origin dev
-git log --oneline HEAD..origin/dev
-git rebase origin/dev
+git fetch origin <source_branch>
+git log --oneline <source_branch>..origin/<source_branch>
+git rebase origin/<source_branch>   # only when the current branch is <source_branch>
 ```
 
 - Report the new commits (the `log` output above). If the rebase conflicts, stop, list the conflicting files and ask; use `git rebase --abort` only if the user says so.
-- Do not run `git reset` or push.
+- Do not run `git reset` or push — not here, and not in the drift check below. The only push this
+  workflow makes is `git-dev-update`'s, behind its own gate.
 
-### Check for drift against `main` (fallback only)
-`git-dev-update` targets `main` for its merge request by default (see that skill) — `dev` is only
-the branch-cut source, kept in sync *from* `main` right after each such PR merges, as the next
-action at the time, not something to catch later (see `project-prompt.md` if it documents a
-project-specific variant). This check is only the fallback for when that sync got missed:
+### Check for drift against `<target_branch>` (fallback only)
+`git-dev-update` targets `<target_branch>` for its merge request by default (see that skill) —
+`<source_branch>` is only the branch-cut source, kept in sync *from* `<target_branch>` right after
+each such PR merges, as the next action at the time, not something to catch later. This check is
+only the fallback for when that sync got missed:
 
 ```bash
-git fetch origin main
-git log --oneline dev..origin/main
+git fetch origin <target_branch>
+git log --oneline <source_branch>..origin/<target_branch>
 ```
-If `origin/main` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `dev` has drifted behind `main`: tell the user plainly what's missing, then merge `origin/main` into `dev` to close the gap (confirm before pushing). Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
+If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing and ask whether to merge `origin/<target_branch>` into the local `<source_branch>` to close the gap (offer this only when the current branch is `<source_branch>`, since `git merge` merges into whatever is checked out). Merge only on a yes (if it conflicts, stop and list the files, as for the rebase above). Never push the result: tell the user that publishing `<source_branch>` (`git push origin <source_branch>`) is theirs to do. Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
 
 ## 2. Fetch tracker updates
 ```bash
@@ -76,13 +90,53 @@ gitignored, never committed). Read them and summarize only what matters: open is
 requests, milestones, failed or uncovered requirements. If a `github`-backed provider errors (e.g.
 `gh` not installed/authenticated), stop and report the error rather than falling back silently.
 
-## 3. Ask the user what to do
+## 3. Check for opt-in auto mode
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.enabled false
+```
+Default is unset/`false` — behavior is unchanged, go straight to step 4. Auto mode chains at most
+once per `git-dev-run` session: if a chain already ran in this session, skip this step and go to
+step 4.
+
+If it's `true`, this session chains the workflow automatically instead of asking what to do: say
+once that auto mode is on, then fetch the gate list and the review toggle:
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.gates ""
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" config auto.review false
+```
+Split `auto.gates` on commas into short step names (`target`, `plan`, `execute`, `review`,
+`update`; a `git-dev-` prefixed name means the same step). Then decide each step's gate:
+- **`auto.gates` empty**: every step is **gated** — it still pauses for its own confirmation; auto
+  mode only changes who decides to *start* the next step.
+- **`auto.gates` non-empty**: a step it names is **gated**; a step it leaves out is **ungated**.
+- `git-dev-update` is always gated, whatever the list says (see its own skill).
+- `git-dev-execute` is always gated when either provider is real — `git_dev_data.py provider
+  version_control` / `provider req_tracker` returns a `name` not starting with `mock-`. Issue and
+  requirement text on a real tracker can be written by anyone, and it flows into the plan the
+  executor (an agent with Bash) carries out, so a human must see the plan before it runs.
+
+The chain is `git-dev-target`, `git-dev-plan`, `git-dev-execute`, then `git-dev-review` only if
+`auto.review` is `true`, then `git-dev-update`. Start from the step this prints (same selection as
+step 4's manual choice; add `--review` only when `auto.review` is `true`):
+```bash
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" next-step [--review]
+```
+For each step, invoke the skill `workflow:<step>`, telling it that this run is in auto mode and whether it
+is **gated** or **ungated** (its own "User gate" section acts on exactly that). Stop the chain if
+any step reports a failure, a stop condition (e.g. no opened candidates), or asks a question only
+a human can answer (e.g. a `blocked_by` ordering conflict in `git-dev-target`) — auto mode chains
+the happy path, not past a step that's genuinely stuck. When the chain ends (success or stop), say
+how it ended and go to step 4.
+
+## 4. Ask the user what to do
 One question, with these options:
-- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-update` (4). Suggest the first step whose predecessor has a newer completion date in `state.json`.
+- **Run a step**: ask which; the steps run in order, each asks for confirmation and ends with a summary: `git-dev-target` (1), `git-dev-plan` (2), `git-dev-execute` (3), `git-dev-review` (optional), `git-dev-update` (4). Suggest the `step` printed by `python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" next-step` (the first step that hasn't run since its predecessor did, by timestamp; `git-dev-review` is optional, so it isn't suggested unless `--review` is passed).
+- **Reconfigure**: re-run setup (backend choice and/or the `project-prompt.md` sections) without treating it as first-time setup.
 - **Return status**: show the workflow status.
 
-## 4. Act on the choice
+## 5. Act on the choice
 - **Run a step**: invoke the skill `workflow:<step>` and follow it.
-- **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion date from `git-dev.data/state.json` (`never` if absent).
+- **Reconfigure**: invoke the skill `workflow:git-dev-setup` and follow it.
+- **Return status**: report the git result from step 1, the tracker summary from step 2, and each step's last completion timestamp from `git-dev.data/state.json` (`never` if absent).
 
 After acting, go back to step 1 and ask again. Stop when the user says so.

@@ -52,5 +52,26 @@ class ExecuteChecksResultSection(unittest.TestCase):
             self.assertEqual(ctx.handoff("result")["test_after"], "passed")
 
 
+class ExecuteChecksSubagentDispatch(unittest.TestCase):
+    def test_passes_when_executor_agent_was_dispatched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            (p / "git-dev.data" / "work").mkdir(parents=True)
+            (p / "git-dev.data" / "work" / "handoff.json").write_text(json.dumps(
+                {"result": {"branch": "fix/2-x", "commit": "abc", "test_id": "TC-2",
+                            "test_before": "failed", "test_after": "passed"}}), encoding="utf-8")
+            tools = [{"name": "Agent", "input": {"subagent_type": "workflow:executor"}}]
+            ctx = testplan.WorkflowCtx(p, tools)
+            self.assertTrue(testplan.dispatched_subagent(ctx, "workflow:executor"))
+
+    def test_fails_when_no_agent_tool_call_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp)
+            (p / "git-dev.data" / "work").mkdir(parents=True)
+            (p / "git-dev.data" / "work" / "handoff.json").write_text("{}", encoding="utf-8")
+            ctx = testplan.WorkflowCtx(p, [{"name": "Bash", "input": {"command": "pytest"}}])
+            self.assertFalse(testplan.dispatched_subagent(ctx, "workflow:executor"))
+
+
 if __name__ == "__main__":
     unittest.main()

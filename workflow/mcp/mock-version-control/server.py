@@ -12,11 +12,14 @@ from mockmcp import run  # noqa: E402
 RESOURCES = {
     "issue": ("issues", [
         {"id": 1, "iid": 1, "title": "Add login page", "state": "closed", "milestone_id": 1,
-         "labels": ["feature"], "assignee": "alice", "requirements": ["REQ-1"]},
+         "labels": ["feature"], "assignee": "alice", "requirements": ["REQ-1"],
+         "blocks": [], "blocked_by": []},
         {"id": 2, "iid": 2, "title": "Fix crash on empty input", "state": "opened", "milestone_id": 1,
-         "labels": ["bug"], "assignee": "bob", "requirements": ["REQ-2"]},
+         "labels": ["bug"], "assignee": "bob", "requirements": ["REQ-2"],
+         "blocks": [], "blocked_by": []},
         {"id": 3, "iid": 3, "title": "Document the API", "state": "opened", "milestone_id": 2,
-         "labels": ["docs"], "assignee": None, "requirements": ["REQ-3"]},
+         "labels": ["docs"], "assignee": None, "requirements": ["REQ-3"],
+         "blocks": [], "blocked_by": []},
     ]),
     "merge_request": ("merge_requests", [
         {"id": 10, "iid": 1, "title": "Login page", "state": "merged", "source_branch": "feat/login",
@@ -25,8 +28,8 @@ RESOURCES = {
          "target_branch": "dev", "pipeline": "running", "closes": [3]},
     ]),
     "milestone": ("milestones", [
-        {"id": 1, "title": "v0.1", "state": "active", "due_date": "2026-11-01"},
-        {"id": 2, "title": "v0.2", "state": "active", "due_date": "2026-12-15"},
+        {"id": 1, "title": "v0.1", "state": "open", "due_date": "2026-11-01"},
+        {"id": 2, "title": "v0.2", "state": "open", "due_date": "2026-12-15"},
     ]),
 }
 

@@ -1,8 +1,9 @@
-# PLACEHOLDER: skill custom config (project-specific)
+# git-dev config for this repo (see workflow/assets/git-dev.data/config.yaml for every option).
 
 # Optional. Which provider backs each tracker; defaults to mock if omitted. Read by
-# scripts/git_dev_data.py (a tiny stdlib key:value reader, not full YAML: only this flat/
-# one-level-nested shape is supported, no lists or quoted strings).
+# scripts/git_dev_data.py (a tiny stdlib key:value reader, not full YAML: two-space-indented
+# nesting of `key: value` pairs, `- item` lists under a `key:` header, and quoted values; a `#`
+# starts a comment only at line start or after a space).
 # backends:
 #   version_control: github        # mock | github
 #   req_tracker: github_labels     # mock | github_labels
@@ -17,3 +18,9 @@
 backends:
   version_control: github
   req_tracker: github_labels
+
+# Auto mode is deliberately off here: every action on this repo is real (issues, PRs, pushes).
+# auto:
+#   enabled: true
+#   gates: plan,update
+#   review: true

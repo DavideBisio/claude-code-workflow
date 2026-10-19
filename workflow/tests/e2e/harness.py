@@ -144,7 +144,7 @@ def build_git_fixture(root, template_dir, *, branch="main",
 def run_claude(claude, project, plugin_dir, phase, system_prompt, args):
     cmd = [claude, "-p", "--output-format", "stream-json", "--verbose",
            "--plugin-dir", str(plugin_dir), "--permission-mode", "acceptEdits",
-           "--allowed-tools", "Bash,Read,Write,Edit,Glob,Grep",
+           "--allowed-tools", "Bash,Read,Write,Edit,Glob,Grep,Agent",
            "--append-system-prompt", system_prompt, "--no-session-persistence",
            "--max-budget-usd", str(args.budget)]
     if args.model:

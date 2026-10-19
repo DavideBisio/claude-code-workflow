@@ -19,7 +19,7 @@ import ghcli  # noqa: E402
 
 def run(*args, cwd=None, stdin=None):
     return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          cwd=cwd, input=stdin)
+                          encoding="utf-8", cwd=cwd, input=stdin)
 
 
 class MockServers(unittest.TestCase):
@@ -54,6 +54,14 @@ class MockServers(unittest.TestCase):
         self.assertIn("update_coverage", [t["name"] for t in replies[1]["result"]["tools"]])
         self.assertIn("REQ-2", replies[2]["result"]["content"][0]["text"])
 
+    def test_stdio_is_utf8_whatever_the_console_code_page(self):
+        msg = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+               "params": {"name": "create_requirement", "arguments": {"title": "Á — ü"}}}
+        res = subprocess.run([sys.executable, str(REQ)], capture_output=True,
+                             input=(json.dumps(msg, ensure_ascii=False) + "\n").encode("utf-8"))
+        reply = json.loads(res.stdout.decode("utf-8"))
+        self.assertIn("Á — ü", json.loads(reply["result"]["content"][0]["text"])["data"]["title"])
+
 
 class DataScript(unittest.TestCase):
     def test_init_fetch_record(self):
@@ -75,7 +83,7 @@ class DataScript(unittest.TestCase):
             out = json.loads(run(DATA, "provider", "version_control", cwd=tmp).stdout)
             self.assertEqual(out, {"name": "mock-version-control",
                                    "command": [sys.executable, str(DEV)],
-                                   "tracker_file": "version-control.json"})
+                                   "tracker_file": "version-control.json", "issue_backed": False})
 
     def test_provider_honors_config_backend(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -85,7 +93,7 @@ class DataScript(unittest.TestCase):
             out = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
             self.assertEqual(out, {"name": "github-req-tracker",
                                    "command": [sys.executable, str(GH_REQ)],
-                                   "tracker_file": "req-tracker.json"})
+                                   "tracker_file": "req-tracker.json", "issue_backed": True})
 
     def test_provider_resolves_custom_command(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -96,7 +104,7 @@ class DataScript(unittest.TestCase):
                 f"    command: {sys.executable}\n    args: {REQ}\n", encoding="utf-8")
             out = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
             self.assertEqual(out, {"name": "my_custom", "command": [sys.executable, str(REQ)],
-                                   "tracker_file": "req-tracker.json"})
+                                   "tracker_file": "req-tracker.json", "issue_backed": False})
             tools_res = subprocess.run([*out["command"], "tools"], capture_output=True, text=True, cwd=tmp)
             tools = json.loads(tools_res.stdout)
             self.assertIn("list_requirements", {t["name"] for t in tools})
@@ -177,6 +185,274 @@ class DataScript(unittest.TestCase):
             res = run(DATA, "set-backend", "version_control", "gitlab", cwd=tmp)
             self.assertNotEqual(res.returncode, 0)
 
+    def test_set_backend_accepts_custom_provider(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            config = Path(tmp) / "git-dev.data" / "config.yaml"
+            config.write_text("providers:\n  my_jira:\n    kind: req_tracker\n"
+                              f"    command: {sys.executable}\n    args: {REQ}\n", encoding="utf-8")
+            res = run(DATA, "set-backend", "req_tracker", "my_jira", cwd=tmp)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)["name"], "my_jira")
+            # a custom provider of the other kind is still rejected
+            self.assertNotEqual(run(DATA, "set-backend", "version_control", "my_jira", cwd=tmp).returncode, 0)
+
+    def test_set_backend_finds_header_with_trailing_comment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            config = Path(tmp) / "git-dev.data" / "config.yaml"
+            config.write_text("backends:  # chosen at setup\n  version_control: github\n", encoding="utf-8")
+            run(DATA, "set-backend", "req_tracker", "github_labels", cwd=tmp)
+            text = config.read_text(encoding="utf-8")
+            self.assertEqual(text.count("backends:"), 1)
+            cfg = miniconfig.load(config)
+            self.assertEqual(cfg["backends"], {"version_control": "github", "req_tracker": "github_labels"})
+
+    def test_custom_provider_args_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  req_tracker: my_custom\n"
+                "providers:\n  my_custom:\n    kind: req_tracker\n"
+                f"    command: {sys.executable}\n    args:\n      - -I\n      - {REQ}\n", encoding="utf-8")
+            out = json.loads(run(DATA, "provider", "req_tracker", cwd=tmp).stdout)
+            self.assertEqual(out["command"], [sys.executable, "-I", str(REQ)])
+
+    def test_custom_provider_without_command_fails_cleanly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  req_tracker: my_custom\n"
+                "providers:\n  my_custom:\n    kind: req_tracker\n", encoding="utf-8")
+            res = run(DATA, "provider", "req_tracker", cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("command", res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+
+    def test_provider_error_reaches_the_caller(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            failing = Path(tmp) / "failing.py"
+            failing.write_text("import json, sys\n"
+                               "print(json.dumps({'error': 'gh auth login required'}))\n"
+                               "sys.exit(1)\n", encoding="utf-8")
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "backends:\n  version_control: broken\n"
+                "providers:\n  broken:\n    kind: version_control\n"
+                f"    command: {sys.executable}\n    args: {failing}\n", encoding="utf-8")
+            res = run(DATA, "fetch", cwd=tmp)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("gh auth login required", res.stderr)
+            self.assertNotIn("Traceback", res.stderr)
+
+
+class ProviderCall(unittest.TestCase):
+    def test_call_reads_args_from_stdin_untouched_by_the_shell(self):
+        title = "Don't crash on 'quotes' $(touch pwned) and ünïcode"
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(DATA, "call", "version_control", "create_issue", cwd=tmp,
+                      stdin=json.dumps({"title": title}, ensure_ascii=False))
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(json.loads(res.stdout)["data"]["title"], title)
+            self.assertFalse((Path(tmp) / "pwned").exists())
+
+    def test_call_with_empty_stdin_means_no_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(DATA, "call", "req_tracker", "list_requirements", cwd=tmp, stdin="")
+            self.assertEqual(len(json.loads(res.stdout)), 3)
+
+    def test_call_rejects_bad_json_and_unknown_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            self.assertNotEqual(run(DATA, "call", "req_tracker", "list_requirements", cwd=tmp,
+                                    stdin="{nope").returncode, 0)
+            self.assertNotEqual(run(DATA, "call", "nope", "list_issues", cwd=tmp, stdin="").returncode, 0)
+
+
+class NextStep(unittest.TestCase):
+    def _next(self, state, *flags):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            return json.loads(run(DATA, "next-step", *flags, cwd=tmp).stdout)["step"]
+
+    def test_record_step_stores_a_timestamp(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            state = json.loads(run(DATA, "record-step", "git-dev-target", cwd=tmp).stdout)
+            self.assertRegex(state["git-dev-target"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$")
+
+    def test_fresh_state_starts_at_target(self):
+        self.assertEqual(self._next({}), "git-dev-target")
+
+    def test_second_issue_on_the_same_day(self):
+        # A full run finished in the morning; a new target was picked the same afternoon.
+        state = {"git-dev-target": "2026-10-19T14:00:00", "git-dev-plan": "2026-10-19T09:10:00",
+                 "git-dev-execute": "2026-10-19T09:20:00", "git-dev-update": "2026-10-19T09:30:00"}
+        self.assertEqual(self._next(state), "git-dev-plan")
+
+    def test_completed_run_goes_back_to_target(self):
+        state = {"git-dev-target": "2026-10-19T09:00:00", "git-dev-plan": "2026-10-19T09:10:00",
+                 "git-dev-execute": "2026-10-19T09:20:00", "git-dev-update": "2026-10-19T09:30:00"}
+        self.assertEqual(self._next(state), "git-dev-target")
+
+    def test_review_only_counts_when_asked(self):
+        state = {"git-dev-target": "2026-10-19T09:00:00", "git-dev-plan": "2026-10-19T09:10:00",
+                 "git-dev-execute": "2026-10-19T09:20:00"}
+        self.assertEqual(self._next(state), "git-dev-update")
+        self.assertEqual(self._next(state, "--review"), "git-dev-review")
+        reviewed = {**state, "git-dev-review": "2026-10-19T09:25:00"}
+        self.assertEqual(self._next(reviewed, "--review"), "git-dev-update")
+
+
+class SkillStructure(unittest.TestCase):
+    def test_setup_skill_extracted_from_run(self):
+        setup_skill = ROOT / "skills" / "git-dev-setup" / "SKILL.md"
+        run_skill = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertTrue(setup_skill.exists())
+        self.assertNotIn("pick a backend for each tracker before anything else runs", run_skill)
+        self.assertIn("git-dev-setup", run_skill)
+
+    def test_code_fences_are_balanced_and_closed_bare(self):
+        """A closing fence with trailing text (``` For each) is not a fence: the rest of the skill
+        would render as code."""
+        for path in (ROOT / "skills").glob("*/SKILL.md"):
+            open_ = False
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if line.lstrip().startswith("```"):
+                    if open_:
+                        self.assertEqual(line.strip(), "```", f"{path.parent.name}:{n}")
+                    open_ = not open_
+            self.assertFalse(open_, f"{path.parent.name}: unclosed fence")
+
+    def test_no_json_in_shell_quotes(self):
+        """JSON carrying tracker/user text goes through a quoted heredoc, never '<json>' on the
+        command line, where a `'` in a title ends the quoting and runs the rest as a command."""
+        import re
+        for path in (ROOT / "skills").glob("*/SKILL.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"'\{|'<json", text), path.parent.name)
+            self.assertNotIn("provider-command>", text, path.parent.name)
+
+    def test_update_opens_pr_before_marking_coverage_and_returns_to_source(self):
+        text = (ROOT / "skills" / "git-dev-update" / "SKILL.md").read_text(encoding="utf-8")
+        op = text[text.index("## Operation"):]
+        self.assertLess(op.index("create_merge_request"), op.index("update_coverage"))
+        self.assertLess(op.index("update_coverage"), op.index("git switch <plan.source_branch>"))
+
+    def test_run_rebases_only_the_source_branch(self):
+        text = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("skip the rebase", text)
+        self.assertIn("only when the current branch is <source_branch>", text)
+
+
+def _frontmatter_tools(path):
+    text = path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.strip().startswith("tools:"):
+            return {t.strip() for t in line.split(":", 1)[1].split(",")}
+    return set()
+
+
+class AgentDefinitions(unittest.TestCase):
+    def test_executor_can_edit_and_run_commands(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "executor.md")
+        self.assertEqual(tools, {"Read", "Write", "Edit", "Bash", "Grep", "Glob"})
+
+    def test_reviewer_is_read_only(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "reviewer.md")
+        self.assertEqual(tools, {"Read", "Grep", "Glob"})
+
+    def test_explorer_is_read_only(self):
+        tools = _frontmatter_tools(ROOT / "agents" / "explorer.md")
+        self.assertEqual(tools, {"Read", "Grep", "Glob"})
+
+
+class SubagentWiring(unittest.TestCase):
+    def test_review_skill_exists_and_dispatches_to_reviewer_agent(self):
+        text = (ROOT / "skills" / "git-dev-review" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:reviewer", text)
+
+    def test_execute_dispatches_to_executor_agent(self):
+        text = (ROOT / "skills" / "git-dev-execute" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:executor", text)
+
+    def test_plan_dispatches_to_explorer_agent(self):
+        text = (ROOT / "skills" / "git-dev-plan" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("workflow:explorer", text)
+
+
+class AutoMode(unittest.TestCase):
+    def test_run_chains_steps_when_auto_enabled(self):
+        text = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("auto.enabled", text)
+
+    @staticmethod
+    def _gate(skill):
+        text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+        return text.split("## User gate", 1)[1].split("\n## ", 1)[0]
+
+    def test_skippable_gates_act_on_the_ungated_flag(self):
+        for skill in ("git-dev-target", "git-dev-plan", "git-dev-execute", "git-dev-review"):
+            self.assertIn("**ungated**", self._gate(skill), skill)
+
+    def test_update_gate_is_never_skipped(self):
+        gate = self._gate("git-dev-update")
+        self.assertIn("never skipped", gate)
+        self.assertNotIn("skip this confirmation", gate)
+
+    def test_execute_stays_gated_with_real_providers(self):
+        run_skill = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("`git-dev-execute` is always gated when either provider is real", run_skill)
+        self.assertIn("mock-", self._gate("git-dev-execute"))
+
+    def test_run_selects_steps_through_next_step(self):
+        run_skill = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("git_dev_data.py\" next-step", run_skill)
+        self.assertNotIn("newer completion date", run_skill)
+
+    def test_untrusted_tracker_text_is_called_out(self):
+        for path in (ROOT / "skills" / "git-dev-target" / "SKILL.md", ROOT / "skills" / "git-dev-plan" / "SKILL.md",
+                     ROOT / "skills" / "git-dev-execute" / "SKILL.md", *(ROOT / "agents").glob("*.md")):
+            self.assertIn("untrusted", path.read_text(encoding="utf-8"), path.name)
+
+    def test_run_skill_never_pushes(self):
+        run_skill = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertNotIn("confirm before pushing", run_skill)
+        self.assertIn("Never push the result", run_skill)
+
+    def test_config_reads_auto_gates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "auto:\n  enabled: true\n  gates: plan,update\n", encoding="utf-8")
+            out = json.loads(run(DATA, "config", "auto.enabled", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": True})
+            out2 = json.loads(run(DATA, "config", "auto.gates", cwd=tmp).stdout)
+            self.assertEqual(out2, {"value": "plan,update"})
+
+    def test_config_returns_default_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(DATA, "config", "auto.enabled", "false", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": False})
+
+    def test_config_treats_empty_block_as_unset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            (Path(tmp) / "git-dev.data" / "config.yaml").write_text(
+                "auto:\n  enabled: true\n  gates:\n", encoding="utf-8")
+            out = json.loads(run(DATA, "config", "auto.gates", "", cwd=tmp).stdout)
+            self.assertEqual(out, {"value": ""})
+
+    def test_config_returns_null_when_missing_and_no_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            out = json.loads(run(DATA, "config", "auto.enabled", cwd=tmp).stdout)
+            self.assertIsNone(out["value"])
+
 
 class MiniConfig(unittest.TestCase):
     def test_nested_keys_and_comments(self):
@@ -198,6 +474,23 @@ class MiniConfig(unittest.TestCase):
 
     def test_missing_file_is_empty(self):
         self.assertEqual(miniconfig.load(Path("does/not/exist.yaml")), {})
+
+    def test_quotes_inline_hash_and_lists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.yaml"
+            path.write_text(
+                "github:\n"
+                "  repo: \"owner/name\"  # quoted\n"
+                "  note: 'a#b'\n"
+                "  url: http://x/#frag\n"
+                "providers:\n"
+                "  p:\n"
+                "    args:\n"
+                "      - one\n"
+                "      - \"two words\"\n", encoding="utf-8")
+            cfg = miniconfig.load(path)
+            self.assertEqual(cfg["github"], {"repo": "owner/name", "note": "a#b", "url": "http://x/#frag"})
+            self.assertEqual(cfg["providers"]["p"]["args"], ["one", "two words"])
 
 
 class GhCli(unittest.TestCase):
@@ -222,6 +515,17 @@ class GhCli(unittest.TestCase):
 
     def test_first_ref_default_behavior_unchanged(self):
         self.assertEqual(ghcli.first_ref("Refs #5 and #6"), "#5")
+
+    def test_multi_ref_lists_stay_with_their_keyword(self):
+        for body, blocks, blocked_by in (
+                ("Blocked by #3, #4", [], ["#3", "#4"]),
+                ("Blocks #7 and #8", ["#7", "#8"], []),
+                ("Blocks #1 & #2. Blocked by #3/#4, then see #9", ["#1", "#2"], ["#3", "#4"])):
+            got = ghcli.blocking_refs(body)
+            self.assertEqual(got, (blocks, blocked_by), body)
+            # none of the keyword's refs leaks into the requirement link
+            ref = ghcli.first_ref(body, exclude=got[0] + got[1])
+            self.assertEqual(ref, "#9" if "#9" in body else None, body)
 
 
 class GithubProviders(unittest.TestCase):

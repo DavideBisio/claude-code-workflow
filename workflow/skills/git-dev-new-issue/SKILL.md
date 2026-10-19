@@ -15,10 +15,20 @@ Resolve the active provider — never hardcode `mock-version-control` vs `github
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" provider version_control
 ```
 
-This prints `{name, command, tracker_file}`. Run the printed `command` array verbatim, followed by `TOOL '<json>'`, in place of `<version-control-provider-command>` below.
+This prints `{name, command, tracker_file}`; use `name` to tell a mock from a real tracker. Call the
+provider's tools through `git_dev_data.py call version_control TOOL`, with the JSON args on stdin via a quoted
+heredoc (`<<'GIT_DEV_JSON'`), never inside shell quotes: the args carry user-typed text, and a `'` in
+a title would otherwise end the quoting and run the rest as a command.
 
 ## Operation
-1. Ask the user for: `title` (required), `body` (optional), `labels` (optional — do not use the tracker labels from `config.yaml`'s `github.labels`/defaults `req`/`test`/`dev`; those are managed by `git-dev-new-req` and `git-dev-new-test`), `assignee` (optional).
+1. Before asking for labels, fetch the project's documented label set:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" prompt-section "Issue labels"
+   ```
+   If `text` is not `null`, offer those as the valid choices. Either way, ask the user for: `title`
+   (required), `body` (optional), `labels` (optional — do not use the tracker labels from
+   `config.yaml`'s `github.labels`/defaults `req`/`test`/`dev`; those are managed by
+   `git-dev-new-req` and `git-dev-new-test`), `assignee` (optional).
 2. Show exactly what will be created.
 
 ## User gate
@@ -26,7 +36,9 @@ Before calling anything, state what will happen and ask the user to confirm. If 
 
 ## Create
 ```bash
-<version-control-provider-command> create_issue '{"title":"<title>","body":"<body>","labels":["<label>"],"assignee":"<assignee>"}'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" call version_control create_issue <<'GIT_DEV_JSON'
+{"title":"<title>","body":"<body>","labels":["<label>"],"assignee":"<assignee>"}
+GIT_DEV_JSON
 ```
 - Mock provider: returns `{"ok": true, "mock": true, ...}`, no effect.
 - A `github-*` provider: returns `{"ok": true, "url": "..."}` for a real issue, or `{"ok": false, "error": "..."}`.
