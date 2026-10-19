@@ -70,8 +70,9 @@ that issue plus its requirements (the issue itself, when it is a requirement und
 tracker, and the ones it references), their `coverage` records and `specifications` — not every
 requirement in the tracker. If it exits with an `error` (issue not found), stop and report. Any
 `warnings` (a referenced id that isn't a requirement) are open questions to show the user.
-Fetching clears any earlier `target`/`plan`/`result` from the handoff, since they belonged to the
-previous pick.
+Fetching only replaces the handoff's scratch `scope`; an earlier `target`/`plan`/`result` stays
+untouched until you write the confirmed target below (which clears them, since they belonged to the
+previous pick), so backing out at the gate loses nothing.
 5. Where the issue text and the requirements disagree, the requirements win; say so. If there are
    no opened candidates, stop and report. A candidate with no linked requirement is a valid target
    on its own (see Setup) — don't stop or ask for special confirmation for that case alone.
@@ -88,10 +89,13 @@ not continue on a "no".
 
 ## Output
 Write the confirmed target (validated against its required fields):
-`{"issue": {...}, "requirements": [...], "coverage": [...], "code_area": "..."}`.
+`{"issue": {...}, "requirements": [...], "coverage": [...], "code_area": "..."}`, passed on stdin via
+a quoted heredoc (`<<'GIT_DEV_JSON'`), never inside shell quotes: it carries tracker text, and a `'` in a title would otherwise end the quoting and run the rest as a command.
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write target '<json above>'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write target - <<'GIT_DEV_JSON'
+<json above>
+GIT_DEV_JSON
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-target
 ```
 

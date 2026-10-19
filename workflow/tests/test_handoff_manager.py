@@ -19,8 +19,9 @@ RESULT = {"branch": "fix/2-x", "commit": "abc", "test_id": "TC-4", "test_before"
           "test_after": "passed"}
 
 
-def run(*args, cwd=None):
-    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True, cwd=cwd)
+def run(*args, cwd=None, stdin=None):
+    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
+                          encoding="utf-8", cwd=cwd, input=stdin)
 
 
 class ScopedFetch(unittest.TestCase):
@@ -54,6 +55,25 @@ class WriteValidation(unittest.TestCase):
             res = run(HANDOFF, "write", "target", json.dumps(payload), cwd=tmp)
             self.assertEqual(res.returncode, 0)
             self.assertTrue(json.loads(res.stdout)["ok"])
+
+
+class StdinWrite(unittest.TestCase):
+    def test_write_dash_reads_payload_from_stdin(self):
+        target = {**TARGET, "issue": {"iid": 2, "title": "Don't crash on 'x' $(touch pwned) ü"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(HANDOFF, "write", "target", "-", cwd=tmp, stdin=json.dumps(target, ensure_ascii=False))
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            self.assertEqual(json.loads(run(HANDOFF, "get", "target", cwd=tmp).stdout), target)
+            self.assertFalse((Path(tmp) / "pwned").exists())
+
+    def test_write_rejects_non_object_payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(HANDOFF, "write", "target", "-", cwd=tmp,
+                      stdin=json.dumps(["issue", "requirements", "coverage", "code_area"]))
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("JSON object", json.loads(res.stdout)["error"])
 
 
 class GetScoping(unittest.TestCase):
@@ -160,12 +180,17 @@ class Staleness(unittest.TestCase):
                 run(HANDOFF, "write", section, json.dumps(payload), cwd=tmp)
             self.assertIn("error", json.loads(run(HANDOFF, "get", "result", cwd=tmp).stdout))
 
-    def test_fetch_clears_every_later_section(self):
+    def test_fetch_keeps_in_flight_target_plan_and_result(self):
+        """fetch is git-dev-target's lookup, run before its gate: backing out (or starting it by
+        mistake mid-cycle) must not discard the approved plan or the execute result."""
         with tempfile.TemporaryDirectory() as tmp:
             run(DATA, "init", cwd=tmp)
-            run(HANDOFF, "write", "target", json.dumps(TARGET), cwd=tmp)
+            for section, payload in (("target", TARGET), ("plan", PLAN), ("result", RESULT)):
+                run(HANDOFF, "write", section, json.dumps(payload), cwd=tmp)
             run(HANDOFF, "fetch", "--issue", "3", cwd=tmp)
-            self.assertIn("error", json.loads(run(HANDOFF, "get", "target", cwd=tmp).stdout))
+            self.assertEqual(json.loads(run(HANDOFF, "get", "scope", cwd=tmp).stdout)["issue"]["iid"], 3)
+            for section, payload in (("target", TARGET), ("plan", PLAN), ("result", RESULT)):
+                self.assertEqual(json.loads(run(HANDOFF, "get", section, cwd=tmp).stdout), payload, section)
 
     def test_section_needs_its_predecessor(self):
         with tempfile.TemporaryDirectory() as tmp:

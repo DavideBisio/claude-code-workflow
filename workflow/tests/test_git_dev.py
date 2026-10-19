@@ -19,7 +19,7 @@ import ghcli  # noqa: E402
 
 def run(*args, cwd=None, stdin=None):
     return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          cwd=cwd, input=stdin)
+                          encoding="utf-8", cwd=cwd, input=stdin)
 
 
 class MockServers(unittest.TestCase):
@@ -246,6 +246,31 @@ class DataScript(unittest.TestCase):
             self.assertNotIn("Traceback", res.stderr)
 
 
+class ProviderCall(unittest.TestCase):
+    def test_call_reads_args_from_stdin_untouched_by_the_shell(self):
+        title = "Don't crash on 'quotes' $(touch pwned) and ünïcode"
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(DATA, "call", "version_control", "create_issue", cwd=tmp,
+                      stdin=json.dumps({"title": title}, ensure_ascii=False))
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(json.loads(res.stdout)["data"]["title"], title)
+            self.assertFalse((Path(tmp) / "pwned").exists())
+
+    def test_call_with_empty_stdin_means_no_args(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            res = run(DATA, "call", "req_tracker", "list_requirements", cwd=tmp, stdin="")
+            self.assertEqual(len(json.loads(res.stdout)), 3)
+
+    def test_call_rejects_bad_json_and_unknown_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run(DATA, "init", cwd=tmp)
+            self.assertNotEqual(run(DATA, "call", "req_tracker", "list_requirements", cwd=tmp,
+                                    stdin="{nope").returncode, 0)
+            self.assertNotEqual(run(DATA, "call", "nope", "list_issues", cwd=tmp, stdin="").returncode, 0)
+
+
 class NextStep(unittest.TestCase):
     def _next(self, state, *flags):
         with tempfile.TemporaryDirectory() as tmp:
@@ -289,6 +314,38 @@ class SkillStructure(unittest.TestCase):
         self.assertTrue(setup_skill.exists())
         self.assertNotIn("pick a backend for each tracker before anything else runs", run_skill)
         self.assertIn("git-dev-setup", run_skill)
+
+    def test_code_fences_are_balanced_and_closed_bare(self):
+        """A closing fence with trailing text (``` For each) is not a fence: the rest of the skill
+        would render as code."""
+        for path in (ROOT / "skills").glob("*/SKILL.md"):
+            open_ = False
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if line.lstrip().startswith("```"):
+                    if open_:
+                        self.assertEqual(line.strip(), "```", f"{path.parent.name}:{n}")
+                    open_ = not open_
+            self.assertFalse(open_, f"{path.parent.name}: unclosed fence")
+
+    def test_no_json_in_shell_quotes(self):
+        """JSON carrying tracker/user text goes through a quoted heredoc, never '<json>' on the
+        command line, where a `'` in a title ends the quoting and runs the rest as a command."""
+        import re
+        for path in (ROOT / "skills").glob("*/SKILL.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"'\{|'<json", text), path.parent.name)
+            self.assertNotIn("provider-command>", text, path.parent.name)
+
+    def test_update_opens_pr_before_marking_coverage_and_returns_to_source(self):
+        text = (ROOT / "skills" / "git-dev-update" / "SKILL.md").read_text(encoding="utf-8")
+        op = text[text.index("## Operation"):]
+        self.assertLess(op.index("create_merge_request"), op.index("update_coverage"))
+        self.assertLess(op.index("update_coverage"), op.index("git switch <plan.source_branch>"))
+
+    def test_run_rebases_only_the_source_branch(self):
+        text = (ROOT / "skills" / "git-dev-run" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("skip the rebase", text)
+        self.assertIn("only when the current branch is <source_branch>", text)
 
 
 def _frontmatter_tools(path):

@@ -33,7 +33,7 @@ skills/git-dev-update/            step 4: coverage update, MR, commit git-dev.da
 skills/git-dev-new-issue/         on-demand: create a version-control issue via the configured provider
 skills/git-dev-new-req/           on-demand: create a requirement via the configured req_tracker provider
 skills/git-dev-new-test/          on-demand: create a coverage/testcase record for a requirement
-scripts/git_dev_data.py           init / fetch / record-step / next-step / provider / set-backend / config for git-dev.data/
+scripts/git_dev_data.py           init / fetch / record-step / next-step / provider / call / set-backend / config for git-dev.data/
 scripts/handoff_manager.py        scoped, schema-validated step handoff (target/plan/result) + prompt-section
 assets/git-dev.data/              template copied into the target project
 tests/                            python -m unittest discover tests (test_providers.py stubs `gh`, no network)
@@ -95,9 +95,10 @@ bites; not built speculatively ahead of a real case.
 Each tracker (`version_control`, `req_tracker`) is produced by a provider, selected per-project via
 `backends.version_control` / `backends.req_tracker` in `git-dev.data/config.yaml` (defaults to
 `mock` if unset — existing projects are unaffected). `scripts/git_dev_data.py provider <kind>`
-prints `{name, command, tracker_file}` for whichever provider is active; skills run the printed
-`command` array verbatim (never hardcode a path under `mcp/`), so the same skill text works for a
-built-in or a custom provider.
+prints `{name, command, tracker_file}` for whichever provider is active; skills call its tools
+through `git_dev_data.py call <kind> TOOL` with the JSON args on stdin (never hardcode a path under
+`mcp/`, never put the JSON in shell quotes, since it carries user/tracker text), so the same skill
+text works for a built-in or a custom provider.
 
 - `mock` / `mock_labels`(n/a): static sample data, `create_*`/`update_*` acknowledge with no effect.
 - `github` (version_control) / `github_labels` (req_tracker): shells out to the `gh` CLI (must be
@@ -160,8 +161,9 @@ every `git-dev-run` fetch, used only to pick which issue to target next — see 
 (backends)** above), `state.json` (last completion timestamp per step), `work/handoff.json` (the
 scoped, schema-validated handoff between steps, written and read one section at a time — `scope`/
 `target`/`plan`/`result` — only through `scripts/handoff_manager.py`, never as raw tracker dumps).
-Sections are ordered: storing one clears every later one, and `plan`/`result` need their
-predecessor, so a new target never runs or ships the previous issue's plan or result. Created
+Sections are ordered: writing `target`/`plan`/`result` clears every later one, and `plan`/`result`
+need their predecessor, so a new target never runs or ships the previous issue's plan or result.
+`fetch` replaces only the scratch `scope`, so looking up a candidate never discards in-flight work. Created
 by `git-dev-run`. Every step asks the user before acting and ends with a summary.
 
 ### End-to-end test

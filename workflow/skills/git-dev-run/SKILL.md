@@ -50,14 +50,18 @@ Git comes first so the tree is clean before `git-dev.data/` is rewritten.
 git branch --show-current
 git status --short
 ```
-- The expected branch is `<source_branch>`. If on another branch, say so and ask whether to continue; never switch branches without being asked.
 - If the working tree is not clean, stop and ask; do not stash or discard anything.
-- Otherwise bring `<source_branch>` up to the latest remote commit:
+- The expected branch is `<source_branch>`. If on another branch, say so, skip the rebase and the
+  drift-check merge below (they only ever apply to `<source_branch>` itself), and continue with the
+  read-only parts; never switch branches without being asked. Rebasing another branch would
+  rewrite it: e.g. the work branch `git-dev-execute` just committed to, whose commit hash
+  `git-dev-update` checks against the handoff `result`.
+- On `<source_branch>`, bring it up to the latest remote commit:
 
 ```bash
 git fetch origin <source_branch>
-git log --oneline HEAD..origin/<source_branch>
-git rebase origin/<source_branch>
+git log --oneline <source_branch>..origin/<source_branch>
+git rebase origin/<source_branch>   # only when the current branch is <source_branch>
 ```
 
 - Report the new commits (the `log` output above). If the rebase conflicts, stop, list the conflicting files and ask; use `git rebase --abort` only if the user says so.
@@ -74,7 +78,7 @@ only the fallback for when that sync got missed:
 git fetch origin <target_branch>
 git log --oneline <source_branch>..origin/<target_branch>
 ```
-If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing and ask whether to merge `origin/<target_branch>` into the local `<source_branch>` to close the gap. Merge only on a yes (if it conflicts, stop and list the files, as for the rebase above). Never push the result: tell the user that publishing `<source_branch>` (`git push origin <source_branch>`) is theirs to do. Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
+If `origin/<target_branch>` doesn't exist for this project, skip this check. Otherwise, if that log lists any commits, `<source_branch>` has drifted behind `<target_branch>`: tell the user plainly what's missing and ask whether to merge `origin/<target_branch>` into the local `<source_branch>` to close the gap (offer this only when the current branch is `<source_branch>`, since `git merge` merges into whatever is checked out). Merge only on a yes (if it conflicts, stop and list the files, as for the rebase above). Never push the result: tell the user that publishing `<source_branch>` (`git push origin <source_branch>`) is theirs to do. Every time this check finds drift — not just the first time — separately ask the user whether to open an issue tracking the recurring gap (e.g. via `git-dev-new-issue` if available); never open one without asking, and never skip asking just because a prior run already asked.
 
 ## 2. Fetch tracker updates
 ```bash
@@ -116,8 +120,8 @@ The chain is `git-dev-target`, `git-dev-plan`, `git-dev-execute`, then `git-dev-
 step 4's manual choice; add `--review` only when `auto.review` is `true`):
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/git_dev_data.py" next-step [--review]
-``` For each
-step, invoke the skill `workflow:<step>`, telling it that this run is in auto mode and whether it
+```
+For each step, invoke the skill `workflow:<step>`, telling it that this run is in auto mode and whether it
 is **gated** or **ungated** (its own "User gate" section acts on exactly that). Stop the chain if
 any step reports a failure, a stop condition (e.g. no opened candidates), or asks a question only
 a human can answer (e.g. a `blocked_by` ordering conflict in `git-dev-target`) — auto mode chains

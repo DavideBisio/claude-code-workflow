@@ -8,6 +8,9 @@
   git_dev_data.py providers           print the valid backend choices for every KIND (built-in + custom)
   git_dev_data.py set-backend KIND VALUE   persist a backend choice in config.yaml's `backends:` block
   git_dev_data.py check-provider KIND      smoke-test the active KIND provider's `tools` output
+  git_dev_data.py call KIND TOOL      call TOOL on the active KIND provider with JSON args read from
+                                      stdin (empty -> {}); print its JSON. Use a quoted heredoc: args
+                                      carry user/tracker text, which must never pass through shell quoting
   git_dev_data.py config DOTTED [DEFAULT]  print {value} for a dotted config.yaml key (e.g. auto.enabled);
                                            true/false/yes/no/on/off (any case) print as JSON booleans
 
@@ -107,6 +110,23 @@ def call_provider(command, tool, args=None):
     if res.stderr.strip():
         print(res.stderr.strip(), file=sys.stderr)
     return json.loads(res.stdout)
+
+
+def read_stdin():
+    """All of stdin as UTF-8 text, whatever the console code page (cp1252 on Windows)."""
+    return sys.stdin.buffer.read().decode("utf-8-sig")
+
+
+def call(kind, tool):
+    """One provider tool call with args from stdin, passed on as a single argv element (no shell)."""
+    if kind not in BUILTIN:
+        sys.exit(f"unknown kind: {kind!r}; choose from {list(BUILTIN)}")
+    text = read_stdin().strip()
+    try:
+        args = json.loads(text) if text else {}
+    except json.JSONDecodeError as e:
+        sys.exit(f"invalid JSON on stdin: {e}")
+    return call_provider(provider(kind)["command"], tool, args)
 
 
 def list_providers():
@@ -233,6 +253,8 @@ def main(argv):
         res = list_providers()
     elif cmd == "set-backend" and len(argv) == 3:
         res = set_backend(argv[1], argv[2])
+    elif cmd == "call" and len(argv) == 3:
+        res = call(argv[1], argv[2])
     elif cmd == "check-provider" and len(argv) == 2:
         res = check_provider(argv[1])
     elif cmd == "config" and len(argv) in (2, 3):

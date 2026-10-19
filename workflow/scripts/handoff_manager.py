@@ -5,17 +5,21 @@ Replaces reading/writing raw tracker dumps and loose work/ files with one gitign
 
   handoff_manager.py fetch --issue N      scope requirements/coverage/specifications to issue N
   handoff_manager.py get SECTION          print handoff.json[SECTION] ("scope"|"target"|"plan"|"result")
-  handoff_manager.py write SECTION JSON   validate then store handoff.json[SECTION]
+  handoff_manager.py write SECTION -      validate then store handoff.json[SECTION], JSON read from
+                                          stdin (use a quoted heredoc: the payload carries tracker
+                                          text, which must never pass through shell quoting)
+  handoff_manager.py write SECTION JSON   same, JSON as one argv element
   handoff_manager.py prompt-section HEADING   print {heading, text} for a "## HEADING" block in
                                                project-prompt.md (text is null if missing or still
                                                only the template's <placeholder> lines)
   handoff_manager.py provider KIND        print {name, command, tracker_file, issue_backed} for KIND (passthrough)
   handoff_manager.py record-step NAME     store the current timestamp for step NAME in state.json (passthrough)
 
-Sections are ordered scope -> target -> plan -> result. Storing one (`fetch` stores scope) clears
-every later one, since they were derived from the old value (a new target must not inherit the
-previous issue's plan or result), and `plan`/`result` can only be written once their predecessor
-exists.
+Sections are ordered scope -> target -> plan -> result. Writing target/plan/result clears every
+later one, since they were derived from the old value (a new target must not inherit the previous
+issue's plan or result), and `plan`/`result` can only be written once their predecessor exists.
+`fetch` replaces only `scope`: it is a scratch lookup for choosing a target, so running it (or
+backing out at git-dev-target's gate) never discards an in-flight target/plan/result.
 
 Prints JSON. Stdlib only.
 """
@@ -67,10 +71,10 @@ def _save(handoff):
     HANDOFF.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
 
 
-def _store(section, data):
-    """Set SECTION and drop every later section (see module docstring)."""
+def _store(section, data, clear_later=True):
+    """Set SECTION and (unless told not to) drop every later section (see module docstring)."""
     handoff = _load()
-    for later in ORDER[ORDER.index(section) + 1:]:
+    for later in ORDER[ORDER.index(section) + 1:] if clear_later else ():
         handoff.pop(later, None)
     handoff[section] = data
     _save(handoff)
@@ -106,7 +110,7 @@ def fetch(issue_id):
     scope = {"issue": issue, "requirements": requirements, "coverage": coverage, "specifications": specifications}
     if warnings:
         scope["warnings"] = warnings
-    _store("scope", scope)
+    _store("scope", scope, clear_later=False)
     return scope
 
 
@@ -120,6 +124,8 @@ def get(section):
 def write(section, data):
     if section not in REQUIRED:
         sys.exit(f"unknown section: {section!r}; choose from {list(REQUIRED)}")
+    if not isinstance(data, dict):
+        return {"ok": False, "error": f"'{section}' must be a JSON object, got {type(data).__name__}"}
     missing = [k for k in REQUIRED[section] if k not in data]
     if missing:
         return {"ok": False, "error": f"missing required keys for '{section}': {missing}"}
@@ -166,7 +172,7 @@ def main(argv):
         res = get(argv[1])
     elif cmd == "write" and len(argv) == 3:
         try:
-            data = json.loads(argv[2])
+            data = json.loads(git_dev_data.read_stdin() if argv[2] == "-" else argv[2])
         except json.JSONDecodeError as e:
             sys.exit(f"invalid JSON: {e}")
         res = write(argv[1], data)

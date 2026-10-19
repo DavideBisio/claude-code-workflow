@@ -57,10 +57,12 @@ approve it, edit it, or stop. Do not continue on a "no".
 Write the approved plan as JSON (required keys: `branch`, `test`, `fix`, `verification`,
 `commit_message`, `tracker_updates`; also include `source_branch`/`target_branch` from step 1 so
 `git-dev-execute`/`git-dev-update` don't need to re-resolve them; put risks/open questions under an
-optional `risks` key):
+optional `risks` key), passed on stdin via a quoted heredoc (`<<'GIT_DEV_JSON'`), never inside shell quotes: it carries tracker text, and a `'` in a title would otherwise end the quoting and run the rest as a command:
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write plan '<json above>'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write plan - <<'GIT_DEV_JSON'
+<json above>
+GIT_DEV_JSON
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-plan
 ```
 A rejected write prints which required keys are missing; fix the payload and write again.

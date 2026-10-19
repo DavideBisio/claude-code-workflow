@@ -60,10 +60,13 @@ report that — don't retry the whole dispatch yourself.
 ## Output
 Validate the agent's report has the required keys, then write it (you write the handoff, not the
 agent): `{"branch", "commit", "test_id", "test_before", "test_after"}`, e.g.
-`{"branch": "...", "commit": "...", "test_id": "...", "test_before": "failed", "test_after": "passed"}`.
+`{"branch": "...", "commit": "...", "test_id": "...", "test_before": "failed", "test_after": "passed"}`,
+passed on stdin via a quoted heredoc (`<<'GIT_DEV_JSON'`), never inside shell quotes: it carries tracker text, and a `'` in a title would otherwise end the quoting and run the rest as a command.
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write result '<json above>'
+python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" write result - <<'GIT_DEV_JSON'
+<json above>
+GIT_DEV_JSON
 python "${CLAUDE_PLUGIN_ROOT}/scripts/handoff_manager.py" record-step git-dev-execute
 ```
 
