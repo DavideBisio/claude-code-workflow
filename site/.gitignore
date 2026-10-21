@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.astro/
+# The app build copied in by the "app:copy" script / CI prebuild
+public/app/

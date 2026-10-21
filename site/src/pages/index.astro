@@ -1,0 +1,90 @@
+---
+import { BaseLayout, Hero, Section, FeatureGrid, Steps, Callout, FlowSteps } from '@davidebisio/site-kit';
+import config from 'virtual:site-kit/config';
+import { getDocs } from '../lib/docs';
+
+const skills = (await getDocs())
+  .filter((e) => e.data.group === 'Skill reference')
+  .sort((a, b) => a.data.order - b.data.order);
+const readme = `${config.repo}#prior-art-and-whats-different`;
+---
+
+<BaseLayout title={config.title}>
+  <Hero
+    title={config.title}
+    lede="A Claude Code plugin for workflows that run one gated step at a time. Its `git-dev` workflow takes a GitHub issue to a test-first pull request and tracks which requirements are covered by which tests, using plain GitHub labels."
+    actions={[
+      { label: 'Install', href: '/#install', primary: true },
+      { label: 'Read the docs', href: '/docs/workflow/' },
+      { label: 'View source', href: config.repo ?? '/' },
+    ]}
+  />
+
+  <Section title="The git-dev workflow" intro="`git-dev-run` drives four steps. Each one asks before it acts and ends with a summary.">
+    <FlowSteps
+      caption="An optional `git-dev-review` step sends the fix to a read-only reviewer before the pull request is opened."
+      steps={[
+        { label: 'Target', code: 'git-dev-target', body: 'Pick the issue and the requirements it touches.' },
+        { label: 'Plan', code: 'git-dev-plan', body: 'Plan a test-first fix, the commit and the tracker updates.' },
+        { label: 'Execute', code: 'git-dev-execute', body: 'On a new branch: failing test, fix, passing test, commit.' },
+        { label: 'Update', code: 'git-dev-update', body: 'Push, open the pull request, update coverage.' },
+      ]}
+    />
+  </Section>
+
+  <Section title="What it adds">
+    <FeatureGrid
+      items={[
+        {
+          title: 'Requirements on GitHub labels',
+          body: 'Issues labelled `req` are requirements and `test` issues are the tests that cover them. Requirement tracking needs nothing beyond GitHub.',
+        },
+        {
+          title: 'Swappable providers',
+          body: 'Mock and `gh`-backed providers share one contract, chosen per project in `config.yaml`. Tests run offline, and you can plug in your own provider.',
+        },
+        {
+          title: 'Gated at every step',
+          body: 'Every step asks first. Opt-in auto mode can chain steps, but the step that pushes and opens the pull request always asks.',
+        },
+      ]}
+    />
+    <p>
+      Plenty of plugins already run issue-to-PR workflows. The README compares this one with them in{' '}
+      <a href={readme}>prior art and what's different</a>.
+    </p>
+  </Section>
+
+  <Section title="Install" id="install">
+    <Steps
+      items={[
+        { title: 'Add the marketplace', command: 'claude plugin marketplace add DavideBisio/claude-code-workflow' },
+        {
+          title: 'Install the plugin',
+          body: '`dev-workflows` is the marketplace name, not the repo name.',
+          command: 'claude plugin install workflow@dev-workflows --scope user',
+        },
+        {
+          title: 'Run it in your project',
+          body: 'Start Claude Code in a git repository and run the `git-dev-run` skill. On first run, `git-dev-setup` asks which providers to use and writes `git-dev.data/`.',
+        },
+      ]}
+    />
+    <p>
+      In the interactive REPL the same commands are <code>/plugin marketplace add …</code> and{' '}
+      <code>/plugin install …</code>. The VS Code extension uses <code>/plugins</code> instead.
+    </p>
+    <Callout tone="warning" title="Mock by default, real when you choose GitHub">
+      <p>
+        The mock providers are the default and change nothing. With the <code>github</code> providers, creating or
+        updating a record does it for real: an issue, a pull request or a comment on your repository.
+      </p>
+    </Callout>
+  </Section>
+
+  <Section title="Skills" intro="Each skill's page shows the instructions Claude follows when the skill runs.">
+    <FeatureGrid
+      items={skills.map((s) => ({ title: s.data.title!, body: s.data.description, href: `/docs/${s.id}/` }))}
+    />
+  </Section>
+</BaseLayout>

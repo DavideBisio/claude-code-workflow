@@ -1,0 +1,9 @@
+{
+  "name": "claude-code-workflow",
+  "tagline": "Claude Code workflows that run one gated step at a time, from GitHub issue to test-first pull request.",
+  "repo": "DavideBisio/claude-code-workflow",
+  "url": "https://davidebisio.github.io/claude-code-workflow/",
+  "status": "active",
+  "tags": ["claude-code", "plugin", "github"],
+  "order": 100
+}

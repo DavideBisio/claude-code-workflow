@@ -1,0 +1,31 @@
+---
+import { BaseLayout, Section, FeatureGrid } from '@davidebisio/site-kit';
+import { docsNav } from '@davidebisio/site-kit/content';
+import { getDocs } from '../../lib/docs';
+
+const entries = await getDocs();
+const descriptions = new Map(entries.map((e) => [e.id, e.data.description]));
+// FeatureGrid adds the base path to hrefs itself.
+const nav = docsNav(entries, (e) => `/docs/${e.id}/`);
+const intros: Record<string, string> = {
+  'Skill reference':
+    'Each skill is a `SKILL.md` that Claude follows when the skill runs. These pages are those files as they ship in the plugin.',
+};
+---
+
+<BaseLayout title="Docs" description="Documentation for the workflow plugin and its skills." wide>
+  <h1>Documentation</h1>
+  {
+    nav.map((group) => (
+      <Section title={group.label || undefined} intro={intros[group.label]}>
+        <FeatureGrid
+          items={group.items.map((item) => ({
+            title: item.title,
+            body: descriptions.get(item.id),
+            href: item.href,
+          }))}
+        />
+      </Section>
+    ))
+  }
+</BaseLayout>

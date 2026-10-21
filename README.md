@@ -4,9 +4,13 @@ A [Claude Code](https://claude.com/claude-code) plugin marketplace: step-by-step
 (skills + mock MCP servers) that walk a repeatable process end to end, plus a generic harness for
 testing them by actually driving the skills through the `claude` CLI.
 
+Website: [davidebisio.github.io/claude-code-workflow](https://davidebisio.github.io/claude-code-workflow/)
+(built from `site/`, which publishes `workflow/README.md` and every skill's `SKILL.md` as docs).
+
 ```
 .claude-plugin/marketplace.json   marketplace manifest (one entry per plugin below)
 workflow/                         the workflow plugin (everything in it is mocked)
+site/                             project website (Astro + site-kit), deployed by .github/workflows/pages.yml
 ```
 
 ## Install
