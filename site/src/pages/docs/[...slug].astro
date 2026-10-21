@@ -1,0 +1,31 @@
+---
+import { render } from 'astro:content';
+import { DocsLayout, withBase } from '@davidebisio/site-kit';
+import { docsNav, docTitle, editLink } from '@davidebisio/site-kit/content';
+import config from 'virtual:site-kit/config';
+import { getDocs } from '../../lib/docs';
+
+export async function getStaticPaths() {
+  const entries = await getDocs();
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const nav = docsNav(await getDocs(), (e) => withBase(`/docs/${e.id}/`));
+
+// README.md and every SKILL.md start with their own "# Title".
+const hasOwnH1 = headings.some((h) => h.depth === 1);
+const editUrl = config.repo ? editLink(config.repo, entry.filePath, { siteDir: 'site' }) : undefined;
+---
+
+<DocsLayout
+  title={docTitle(entry)}
+  description={entry.data.description}
+  nav={nav}
+  headings={headings}
+  showTitle={!hasOwnH1}
+  editUrl={editUrl}
+>
+  <Content />
+</DocsLayout>

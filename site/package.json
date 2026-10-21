@@ -1,0 +1,19 @@
+{
+  "name": "claude-code-workflow-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@davidebisio/site-kit": "github:DavideBisio/site-kit#3d8c9f367260ae8e4106516b0ad50692616c0c79",
+    "astro": "^7.4.1"
+  }
+}

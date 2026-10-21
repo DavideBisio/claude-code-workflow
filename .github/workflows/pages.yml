@@ -1,0 +1,23 @@
+# Builds the site with the shared site-kit workflow and deploys it to GitHub Pages.
+# One-time setup: Settings → Pages → Source: GitHub Actions.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    uses: DavideBisio/site-kit/.github/workflows/deploy-pages.yml@3d8c9f367260ae8e4106516b0ad50692616c0c79 # v0.1.1
+    with:
+      site-dir: "site"
