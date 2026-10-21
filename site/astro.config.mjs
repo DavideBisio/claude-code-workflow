@@ -11,6 +11,9 @@ export default defineConfig({
       title: 'claude-code-workflow',
       description: 'Gated, test-first Claude Code workflows with requirement-to-test traceability on plain GitHub issues.',
       repo: 'https://github.com/DavideBisio/claude-code-workflow',
+      // Same mark and tab icon as the hub (copied from davidebisio.github.io/public).
+      logo: '/logo.jpg',
+      favicon: '/favicon.png',
       nav: [
         { label: 'Overview', href: '/' },
         { label: 'Docs', href: '/docs/' },

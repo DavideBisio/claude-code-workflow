@@ -18,6 +18,6 @@ concurrency:
 
 jobs:
   pages:
-    uses: DavideBisio/site-kit/.github/workflows/deploy-pages.yml@3d8c9f367260ae8e4106516b0ad50692616c0c79 # v0.1.1
+    uses: DavideBisio/site-kit/.github/workflows/deploy-pages.yml@ef6ed2586d40a45e27228d4734d5a2abe58575d2 # v0.1.2
     with:
       site-dir: "site"
