@@ -10,10 +10,11 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "node scripts/check.mjs"
   },
   "dependencies": {
-    "@davidebisio/site-kit": "github:DavideBisio/site-kit#3d8c9f367260ae8e4106516b0ad50692616c0c79",
+    "@davidebisio/site-kit": "github:DavideBisio/site-kit#ef6ed2586d40a45e27228d4734d5a2abe58575d2",
     "astro": "^7.4.1"
   }
 }
